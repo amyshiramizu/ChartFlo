@@ -1,0 +1,144 @@
+/* Chart Flo CCM tracking badge styles */
+.cs-tracking-badge {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 2147483647;
+  background: #0f172a;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  width: 280px;
+  border: 1px solid rgba(20, 184, 166, 0.4);
+}
+.cs-tracking-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cs-tracking-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #14b8a6;
+  box-shadow: 0 0 0 4px rgba(20, 184, 166, 0.2);
+  animation: cs-pulse 1.8s ease-in-out infinite;
+}
+@keyframes cs-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.cs-tracking-label {
+  flex: 1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cs-tracking-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: rgba(20, 184, 166, 0.15);
+  color: #5eead4;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.cs-patient-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+.cs-patient-row label {
+  color: #94a3b8;
+  font-size: 11px;
+}
+.cs-patient-input {
+  flex: 1;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f1f5f9;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font-size: 12px;
+  outline: none;
+}
+.cs-patient-input:focus {
+  border-color: #14b8a6;
+}
+.cs-tracking-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+}
+.cs-tracking-btn {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cs-tracking-btn:hover { background: #334155; }
+.cs-tracking-btn.cs-primary {
+  background: #14b8a6;
+  color: #0f172a;
+  border-color: #14b8a6;
+  font-weight: 600;
+}
+.cs-tracking-btn.cs-primary:hover { background: #0d9488; }
+.cs-tracking-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cs-ai-panel {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #1e293b;
+}
+.cs-ai-panel textarea {
+  width: 100%;
+  min-height: 50px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f1f5f9;
+  border-radius: 6px;
+  padding: 6px;
+  font-size: 12px;
+  resize: vertical;
+  box-sizing: border-box;
+  outline: none;
+}
+.cs-ai-panel textarea:focus { border-color: #14b8a6; }
+.cs-ai-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cs-ai-output {
+  margin-top: 8px;
+  background: #1e293b;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.cs-ai-section { margin-bottom: 8px; }
+.cs-ai-section strong { color: #5eead4; }
+
+.cs-collapsed .cs-tracking-actions,
+.cs-collapsed .cs-patient-row,
+.cs-collapsed .cs-ai-panel { display: none !important; }
+
+.cs-tracking-toggle {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+}
+.cs-tracking-toggle:hover { color: #f1f5f9; }

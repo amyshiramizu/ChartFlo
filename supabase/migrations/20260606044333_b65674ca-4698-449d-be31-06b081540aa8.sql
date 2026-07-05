@@ -1,0 +1,1 @@
+ALTER TABLE public.clinic_settings ADD COLUMN IF NOT EXISTS favicon_url text NOT NULL DEFAULT '';

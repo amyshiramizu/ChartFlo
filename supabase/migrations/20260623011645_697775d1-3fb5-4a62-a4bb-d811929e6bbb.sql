@@ -1,0 +1,1 @@
+DELETE FROM public.patients WHERE last_name ILIKE 'HH %' OR last_name ILIKE 'HH' OR first_name ILIKE 'HH %' OR first_name ILIKE 'HH';

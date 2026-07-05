@@ -1,0 +1,2 @@
+ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS provider text DEFAULT NULL;
+ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS location text DEFAULT NULL;
