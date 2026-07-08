@@ -18,6 +18,7 @@ import {
   Download, Upload, ArrowUpDown, Lightbulb, X, UserPlus, Stethoscope
 } from 'lucide-react';
 import CCMBatchUpload from '@/components/CCMBatchUpload';
+import PeriodMetricsBar from '@/components/PeriodMetricsBar';
 import { Checkbox } from '@/components/ui/checkbox';
 
 // Medicare CCM billable activities per CMS guidelines
@@ -548,6 +549,9 @@ export default function CCMDashboardPage({ program = 'CCM' }: { program?: 'CCM' 
         <MobileHeader />
         <div className="flex-1 p-4 md:p-6 overflow-auto">
           <div className="max-w-7xl mx-auto space-y-5">
+            {/* ─── Period Metrics ───────────────────── */}
+            <PeriodMetricsBar program={programLabel} />
+
             {/* ─── Top Bar ──────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1 border-b border-border/60">
               <div>
