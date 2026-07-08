@@ -1,0 +1,70 @@
+{
+  "manifest_version": 3,
+  "name": "Chart Flo → Practice Fusion + CCM Tracker",
+  "version": "2.9.0",
+  "description": "One-click import of Chart Flo SOAP notes into Practice Fusion (Chart-Notes style), with a floating importer button, live CCM minute tracking across PF/Updox/Teams/CoverMyMeds/Impact RPM, end-of-day CCM auto-documentation queue, fax-page order auto-fill, and an ambient-encounter recorder with Bluetooth-mic support that docks as a side panel.",
+  "permissions": ["activeTab", "storage", "scripting", "tabs", "sidePanel"],
+  "host_permissions": [
+    "https://*.practicefusion.com/*",
+    "https://static.practicefusion.com/*",
+    "https://*.updox.com/*",
+    "https://*.covermymeds.com/*",
+    "https://*.covermymeds.health/*",
+    "https://*.impact-rpm.io/*",
+    "https://impact-rpm.io/*",
+    "https://teams.microsoft.com/*",
+    "https://*.teams.microsoft.com/*"
+  ],
+  "action": {
+    "default_title": "Open Chart Flo side panel",
+    "default_icon": "icon.png"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
+  },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.practicefusion.com/*"],
+      "js": ["parser.js", "content.js"],
+      "css": ["content.css", "content-styles.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://*.practicefusion.com/*"],
+      "js": ["pf-queue.js"],
+      "css": ["pf-queue.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://*.practicefusion.com/*"],
+      "js": ["pf-fax.js"],
+      "css": ["pf-fax.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.practicefusion.com/*",
+        "https://*.updox.com/*",
+        "https://*.covermymeds.com/*",
+        "https://*.covermymeds.health/*",
+        "https://*.impact-rpm.io/*",
+        "https://impact-rpm.io/*",
+        "https://teams.microsoft.com/*",
+        "https://*.teams.microsoft.com/*"
+      ],
+      "js": ["tracker.js"],
+      "css": ["tracker.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": { "48": "icon.png", "128": "icon.png" },
+  "externally_connectable": {
+    "matches": [
+      "https://*.lovable.app/*",
+      "https://*.lovableproject.com/*",
+      "http://localhost:*/*"
+    ]
+  }
+}

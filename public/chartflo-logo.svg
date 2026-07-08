@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 727 200" width="727" height="200">
+  <defs>
+    <linearGradient id="gflo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0EA5A4"/>
+      <stop offset="100%" stop-color="#2E8FFF"/>
+    </linearGradient>
+    <linearGradient id="gtext" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0EA5A4"/>
+      <stop offset="100%" stop-color="#2E8FFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="727" height="200" fill="#13294B"/>
+  <rect x="30" y="34" width="132" height="132" rx="31.68" fill="url(#gflo)"/>
+  <line x1="57.72" y1="75.58" x2="134.28" y2="75.58" stroke="white" stroke-width="9.9" stroke-linecap="round"/>
+  <line x1="57.72" y1="100" x2="118" y2="100" stroke="white" stroke-width="9.9" stroke-linecap="round"/>
+  <line x1="57.72" y1="124.42" x2="103.656" y2="124.42" stroke="white" stroke-width="9.9" stroke-linecap="round"/>
+  <text x="198" y="138" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-weight="700" font-size="110" letter-spacing="-2" fill="url(#gtext)">Chart Flo</text>
+</svg>

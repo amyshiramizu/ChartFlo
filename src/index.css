@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    --primary: 210 70% 28%;
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 180 35% 40%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 15% 93%;
+    --muted-foreground: 215 12% 50%;
+
+    --accent: 180 40% 92%;
+    --accent-foreground: 180 35% 25%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 15% 88%;
+    --input: 210 15% 88%;
+    --ring: 210 70% 28%;
+
+    --radius: 0.5rem;
+
+    --success: 145 60% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 90% 50%;
+    --warning-foreground: 38 90% 15%;
+    --clinical: 210 25% 96%;
+    --clinical-foreground: 215 25% 15%;
+
+    --sidebar-background: 210 70% 22%;
+    --sidebar-foreground: 210 20% 90%;
+    --sidebar-primary: 180 50% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 60% 30%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 210 50% 30%;
+    --sidebar-ring: 180 50% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .clinical-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}

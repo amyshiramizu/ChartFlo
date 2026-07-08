@@ -1,0 +1,36 @@
+.cs-pf-detected { outline: 2px solid #14b8a6 !important; outline-offset: 2px !important; transition: outline-color .6s; }
+.cs-pf-flash { outline: 2px solid #0c4a6e !important; box-shadow: 0 0 0 4px rgba(12,74,110,.15) !important; }
+
+/* Floating Chart Flo importer (Chart-Notes style) */
+.cs-importer-fab {
+  position: fixed; bottom: 96px; right: 16px; z-index: 2147483646;
+  width: 260px; background: #0f172a; color: #f8fafc;
+  border-radius: 12px; padding: 10px; font: 13px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  box-shadow: 0 12px 32px rgba(0,0,0,.35); border: 1px solid #1e293b;
+}
+.cs-importer-fab .cs-imp-main {
+  width: 100%; display: flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg,#0d9488,#0ea5e9); color: white;
+  border: 0; border-radius: 8px; padding: 10px 12px; cursor: pointer;
+  font-weight: 600; font-size: 13px;
+}
+.cs-importer-fab .cs-imp-main:hover { filter: brightness(1.1); }
+.cs-importer-fab .cs-imp-icon { font-size: 16px; }
+.cs-importer-fab .cs-imp-meta {
+  margin-top: 8px; padding: 6px 8px; font-size: 11px;
+  background: #1e293b; color: #cbd5e1; border-radius: 6px;
+}
+.cs-importer-fab .cs-imp-actions { display: flex; gap: 6px; margin-top: 8px; }
+.cs-importer-fab .cs-imp-mini {
+  flex: 1; background: #1e293b; color: #e2e8f0; border: 1px solid #334155;
+  border-radius: 6px; padding: 5px 6px; font-size: 11px; cursor: pointer;
+}
+.cs-importer-fab .cs-imp-mini:hover { background: #334155; }
+
+.cs-imp-toast {
+  position: fixed; bottom: 24px; right: 16px; z-index: 2147483647;
+  background: #0c4a6e; color: white; padding: 10px 14px; border-radius: 8px;
+  font: 12px -apple-system, BlinkMacSystemFont, sans-serif;
+  box-shadow: 0 8px 20px rgba(0,0,0,.3);
+}
+.cs-imp-toast.err { background: #991b1b; }

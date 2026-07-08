@@ -1,0 +1,16 @@
+project_id = "qefadntuaqhrlfoqhpan"
+
+[functions.ccm-log-assist]
+verify_jwt = false
+
+[functions.ccm-batch-parse]
+verify_jwt = false
+
+[functions.structure-soap]
+verify_jwt = false
+
+[functions.dispatch-sync]
+verify_jwt = false
+
+[functions.extract-clinical-data]
+verify_jwt = true

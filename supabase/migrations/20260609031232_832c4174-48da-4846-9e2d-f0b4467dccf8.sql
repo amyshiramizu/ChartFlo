@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN IF NOT EXISTS default_clinic_id uuid REFERENCES public.clinics(id) ON DELETE SET NULL;
