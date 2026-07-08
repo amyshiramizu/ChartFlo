@@ -11,10 +11,12 @@ import {
 
 const STAT_DEFS = [
   { key: 'minutes', label: 'Mins', title: 'Total minutes logged in this period' },
-  { key: 'patients', label: 'Pts', title: 'Distinct patients with time logged in this period' },
-  { key: 'compliancePct', label: 'Compl', title: 'Patients with time logged this period, as a share of all patients', pct: true },
+  { key: 'periods', label: 'Periods', title: 'Completed 20-minute billing blocks in this period, counted per patient' },
+  { key: 'compliancePct', label: 'Compliant', title: 'Patients with time logged this period, as a share of all patients', pct: true },
   { key: 'billablePct', label: 'Billable', title: 'Patients worked this period who have reached 20 billable minutes month-to-date, as a share of all patients', pct: true },
 ] as const;
+
+const CURRENT_PERIODS = new Set(['thisWeek', 'today']);
 
 export default function PeriodMetricsBar({ program }: { program: 'CCM' | 'RPM' }) {
   const { patients } = usePatientStore();
@@ -47,58 +49,56 @@ export default function PeriodMetricsBar({ program }: { program: 'CCM' | 'RPM' }
   );
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 flex gap-2 overflow-x-auto pb-1 -mb-1">
-        {metrics.map(({ period, stats }) => (
-          <PeriodCard key={period.key} period={period} stats={stats} loading={loading} />
+    <div className="bg-card border-b border-border flex items-stretch">
+      <div className="flex-1 flex items-stretch overflow-x-auto">
+        {metrics.map(({ period, stats }, i) => (
+          <div
+            key={period.key}
+            className={cn(
+              'flex items-stretch shrink-0 py-1.5',
+              i > 0 && 'border-l-4 border-border/40',
+            )}
+          >
+            <div className="flex items-center px-2">
+              <span
+                className={cn(
+                  'text-xs font-semibold leading-tight text-center rounded px-2.5 py-1.5 whitespace-pre-line',
+                  CURRENT_PERIODS.has(period.key)
+                    ? 'bg-sky-100 text-sky-900 dark:bg-sky-900/50 dark:text-sky-100'
+                    : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {period.label.replace(' ', '\n')}
+              </span>
+            </div>
+            {STAT_DEFS.map(def => (
+              <div
+                key={def.key}
+                title={def.title}
+                className="flex flex-col items-center justify-center px-4 border-l border-border/60 min-w-[72px]"
+              >
+                <span className="text-[11px] font-medium text-muted-foreground whitespace-nowrap">{def.label}</span>
+                <span className="text-sm font-bold tabular-nums">
+                  {loading ? '·' : `${stats[def.key]}${'pct' in def && def.pct ? '%' : ''}`}
+                </span>
+              </div>
+            ))}
+          </div>
         ))}
       </div>
-      <Button
-        size="icon"
-        variant="outline"
-        className="h-9 w-9 shrink-0"
-        onClick={fetchWindow}
-        title="Refresh metrics"
-      >
-        <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
-      </Button>
+      <div className="flex items-center px-2 border-l border-border/60">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={fetchWindow}
+          title="Refresh metrics"
+        >
+          <RefreshCw className={cn('w-4 h-4', loading && 'animate-spin')} />
+        </Button>
+      </div>
     </div>
   );
 }
 
-function PeriodCard({ period, stats, loading }: {
-  period: PeriodDef;
-  stats: ReturnType<typeof computePeriodMetrics>;
-  loading: boolean;
-}) {
-  const isToday = period.key === 'today';
-  return (
-    <div
-      className={cn(
-        'flex shrink-0 rounded-lg border overflow-hidden bg-card shadow-sm',
-        isToday ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border',
-      )}
-    >
-      <div
-        className={cn(
-          'flex items-center px-3 text-xs font-bold leading-tight',
-          isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-foreground',
-        )}
-      >
-        <span className="whitespace-pre-line">{period.label.replace(' ', '\n')}</span>
-      </div>
-      {STAT_DEFS.map(def => (
-        <div
-          key={def.key}
-          title={def.title}
-          className="flex flex-col items-center justify-center px-3 py-1.5 border-l border-border/60 min-w-[58px]"
-        >
-          <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[64px]">{def.label}</span>
-          <span className="text-sm font-bold tabular-nums">
-            {loading ? '·' : `${stats[def.key]}${'pct' in def && def.pct ? '%' : ''}`}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
+export type { PeriodDef };

@@ -16,6 +16,8 @@ export interface PeriodDef {
 export interface PeriodMetrics {
   minutes: number;
   patients: number;
+  /** Completed 20-minute billing blocks, summed per patient over the period. */
+  periods: number;
   compliancePct: number;
   billablePct: number;
 }
@@ -68,6 +70,8 @@ export function metricsWindow(today: Date): { start: string; end: string } {
  * Metrics for one period:
  * - minutes: total minutes logged in the period
  * - patients: distinct enrolled patients with time logged in the period
+ * - periods: completed 20-minute billing blocks within the period, counted
+ *   per patient (a patient at 10 minutes contributes 0; at 45 minutes, 2)
  * - compliancePct: patients touched in the period / enrolled patients
  * - billablePct: patients touched in the period who reach the billable
  *   threshold in any calendar month the period overlaps, counting that
@@ -84,6 +88,13 @@ export function computePeriodMetrics(
 
   const minutes = inPeriod.reduce((s, e) => s + e.minutes, 0);
   const touched = new Set(inPeriod.map(e => e.patient_id));
+
+  const perPatientMinutes = new Map<string, number>();
+  for (const e of inPeriod) {
+    perPatientMinutes.set(e.patient_id, (perPatientMinutes.get(e.patient_id) || 0) + e.minutes);
+  }
+  const periods = Array.from(perPatientMinutes.values())
+    .reduce((s, m) => s + Math.floor(m / BILLABLE_THRESHOLD_MIN), 0);
 
   // A period (e.g. a week) can span a month boundary; billing accrues per
   // calendar month, so check each overlapped month's total independently.
@@ -113,6 +124,7 @@ export function computePeriodMetrics(
   return {
     minutes,
     patients: touched.size,
+    periods,
     compliancePct: pct(touched.size),
     billablePct: pct(billable),
   };
