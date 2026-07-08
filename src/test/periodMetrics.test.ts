@@ -39,10 +39,11 @@ describe('computePeriodMetrics', () => {
   ];
   const [lastWeek, thisWeek, today, nextWeek] = buildPeriods(TODAY);
 
-  it('computes today: mins, patients, compliance, billable', () => {
+  it('computes today: mins, patients, periods, compliance, billable', () => {
     const m = computePeriodMetrics(entries, enrolled, today);
     expect(m.minutes).toBe(15); // p1 10 + p2 5
     expect(m.patients).toBe(2);
+    expect(m.periods).toBe(0); // no patient reaches 20 min today alone
     expect(m.compliancePct).toBe(50); // 2 of 4
     expect(m.billablePct).toBe(25); // only p1 has ≥20 MTD
   });
@@ -51,22 +52,30 @@ describe('computePeriodMetrics', () => {
     const m = computePeriodMetrics(entries, enrolled, thisWeek);
     expect(m.minutes).toBe(30);
     expect(m.patients).toBe(2);
+    expect(m.periods).toBe(1); // p1: 25 min → one 20-min block; p2: 5 min → none
   });
 
   it('credits billable status from any month a spanning period overlaps', () => {
     const m = computePeriodMetrics(entries, enrolled, lastWeek);
     expect(m.minutes).toBe(30); // p3 in June
     expect(m.patients).toBe(1);
+    expect(m.periods).toBe(1); // p3: 30 min → one 20-min block
     expect(m.billablePct).toBe(25); // p3: 30 min in June ≥ 20
+  });
+
+  it('counts multiple completed blocks per patient', () => {
+    const heavy: MetricEntry[] = [{ patient_id: 'p1', date: '2026-07-08', minutes: 45 }];
+    const m = computePeriodMetrics(heavy, enrolled, today);
+    expect(m.periods).toBe(2); // 45 min → two 20-min blocks
   });
 
   it('returns zeros for a future period with no entries', () => {
     const m = computePeriodMetrics(entries, enrolled, nextWeek);
-    expect(m).toEqual({ minutes: 0, patients: 0, compliancePct: 0, billablePct: 0 });
+    expect(m).toEqual({ minutes: 0, patients: 0, periods: 0, compliancePct: 0, billablePct: 0 });
   });
 
   it('handles an empty panel without dividing by zero', () => {
     const m = computePeriodMetrics(entries, new Set(), today);
-    expect(m).toEqual({ minutes: 0, patients: 0, compliancePct: 0, billablePct: 0 });
+    expect(m).toEqual({ minutes: 0, patients: 0, periods: 0, compliancePct: 0, billablePct: 0 });
   });
 });

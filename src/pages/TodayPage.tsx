@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useClinic } from '@/hooks/useClinic';
 import { AppSidebar, MobileHeader } from '@/components/AppSidebar';
+import PeriodMetricsBar from '@/components/PeriodMetricsBar';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -470,6 +471,7 @@ export default function TodayPage() {
       <AppSidebar />
       <div className="flex-1 flex flex-col">
         <MobileHeader />
+        <PeriodMetricsBar />
         <main className="flex-1 p-4 md:p-8 max-w-6xl w-full mx-auto space-y-6">
           <header className="flex items-start justify-between gap-3 flex-wrap">
             <div>
