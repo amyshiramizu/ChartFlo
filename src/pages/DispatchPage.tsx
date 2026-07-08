@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppSidebar, MobileHeader } from "@/components/AppSidebar";
+import PeriodMetricsBar from "@/components/PeriodMetricsBar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -253,6 +254,7 @@ export default function DispatchPage() {
       <AppSidebar />
       <div className="flex-1 flex flex-col">
         <MobileHeader />
+        <PeriodMetricsBar />
         <main className="flex-1 p-4 md:p-8 max-w-6xl mx-auto w-full space-y-6">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">

@@ -17,30 +17,55 @@ const STAT_DEFS = [
 ] as const;
 
 const CURRENT_PERIODS = new Set(['thisWeek', 'today']);
+const PROGRAM_FILTERS = ['All', 'CCM', 'RPM'] as const;
+type ProgramFilter = (typeof PROGRAM_FILTERS)[number];
+const FILTER_STORAGE_KEY = 'period_metrics_program';
 
-export default function PeriodMetricsBar({ program }: { program: 'CCM' | 'RPM' }) {
-  const { patients } = usePatientStore();
+/**
+ * Full-width time-tracking strip pinned to the top of the screen.
+ * Pass `program` to lock it to one program (CCM/RPM dashboards);
+ * omit it to show an All/CCM/RPM toggle (app-wide pages).
+ */
+export default function PeriodMetricsBar({ program }: { program?: 'CCM' | 'RPM' }) {
+  const { patients, fetchPatients } = usePatientStore();
   const [entries, setEntries] = useState<MetricEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<ProgramFilter>(() => {
+    if (program) return program;
+    const saved = localStorage.getItem(FILTER_STORAGE_KEY) as ProgramFilter | null;
+    return saved && PROGRAM_FILTERS.includes(saved) ? saved : 'All';
+  });
 
   const today = useMemo(() => new Date(), []);
   const periods = useMemo(() => buildPeriods(today), [today]);
+  const activeProgram = program ?? filter;
 
   const fetchWindow = useCallback(async () => {
     setLoading(true);
     const { start, end } = metricsWindow(today);
-    const { data, error } = await supabase
+    let query = supabase
       .from('ccm_time_entries')
       .select('patient_id, date, minutes')
-      .eq('program', program)
       .gte('date', start)
       .lte('date', end);
+    if (activeProgram !== 'All') query = query.eq('program', activeProgram);
+    const { data, error } = await query;
     if (error) console.error('Failed to fetch period metrics:', error);
     else setEntries((data || []) as MetricEntry[]);
     setLoading(false);
-  }, [program, today]);
+  }, [activeProgram, today]);
 
   useEffect(() => { fetchWindow(); }, [fetchWindow]);
+
+  useEffect(() => {
+    if (patients.length === 0) fetchPatients();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function changeFilter(f: ProgramFilter) {
+    setFilter(f);
+    localStorage.setItem(FILTER_STORAGE_KEY, f);
+  }
 
   const enrolledIds = useMemo(() => new Set(patients.map(p => p.id)), [patients]);
   const metrics = useMemo(
@@ -86,7 +111,25 @@ export default function PeriodMetricsBar({ program }: { program: 'CCM' | 'RPM' }
           </div>
         ))}
       </div>
-      <div className="flex items-center px-2 border-l border-border/60">
+      <div className="flex items-center gap-1 px-2 border-l border-border/60">
+        {!program && (
+          <div className="hidden sm:flex rounded-md border border-border overflow-hidden">
+            {PROGRAM_FILTERS.map(f => (
+              <button
+                key={f}
+                onClick={() => changeFilter(f)}
+                className={cn(
+                  'px-2 py-1 text-[11px] font-semibold transition-colors',
+                  filter === f
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-card text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+        )}
         <Button
           size="icon"
           variant="ghost"
