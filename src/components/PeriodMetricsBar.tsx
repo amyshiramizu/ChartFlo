@@ -67,7 +67,11 @@ export default function PeriodMetricsBar({ program }: { program?: 'CCM' | 'RPM' 
     localStorage.setItem(FILTER_STORAGE_KEY, f);
   }
 
-  const enrolledIds = useMemo(() => new Set(patients.map(p => p.id)), [patients]);
+  // Inactive patients don't count toward panel percentages
+  const enrolledIds = useMemo(
+    () => new Set(patients.filter(p => p.status !== 'inactive').map(p => p.id)),
+    [patients],
+  );
   const metrics = useMemo(
     () => periods.map(p => ({ period: p, stats: computePeriodMetrics(entries, enrolledIds, p) })),
     [periods, entries, enrolledIds],

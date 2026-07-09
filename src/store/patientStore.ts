@@ -10,7 +10,7 @@ interface PatientStore {
   fetchPatients: () => Promise<void>;
   fetchTemplates: () => Promise<void>;
   addPatient: (patient: Omit<Patient, 'medications' | 'notes'>) => Promise<void>;
-  updatePatient: (id: string, updates: Partial<Patient>) => Promise<void>;
+  updatePatient: (id: string, updates: Partial<Patient>) => Promise<boolean | void>;
   selectPatient: (id: string | null) => void;
   addNote: (patientId: string, note: ClinicalNote) => Promise<void>;
   deleteNote: (patientId: string, noteId: string) => Promise<void>;
@@ -363,6 +363,8 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
         createdAt: p.created_at,
         provider: p.provider || undefined,
         location: p.location || undefined,
+        // Tolerate databases where the status migration hasn't run yet
+        status: p.status === 'inactive' ? 'inactive' : 'active',
         medications: (medsByPatient.get(p.id) || []).map((m: any) => ({
           id: m.id,
           name: m.name,
@@ -457,6 +459,7 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
       medications: [],
       notes: [],
       createdAt: data.created_at,
+      status: (data as any).status === 'inactive' ? 'inactive' : 'active',
     };
 
     set((s) => ({ patients: [newPatient, ...s.patients] }));
@@ -471,18 +474,20 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
     if (updates.gender !== undefined) dbUpdates.gender = updates.gender;
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
     if (updates.allergies !== undefined) dbUpdates.allergies = updates.allergies;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
 
     if (Object.keys(dbUpdates).length > 0) {
       const { error } = await supabase.from('patients').update(dbUpdates).eq('id', id);
       if (error) {
         console.error('Failed to update patient:', error);
-        return;
+        return false;
       }
     }
 
     set((s) => ({
       patients: s.patients.map((p) => (p.id === id ? { ...p, ...updates } : p)),
     }));
+    return true;
   },
 
   selectPatient: (id) => set({ selectedPatientId: id }),
