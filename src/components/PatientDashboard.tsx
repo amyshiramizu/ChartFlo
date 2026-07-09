@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { usePatientStore } from '@/store/patientStore';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, ChevronRight, AlertTriangle, Pencil, Filter, Download, Mic, FileText, HeartPulse, Activity, Upload } from 'lucide-react';
+import { Search, Plus, ChevronRight, AlertTriangle, Pencil, Filter, Download, Mic, FileText, HeartPulse, Activity, Upload, UserCheck, UserX } from 'lucide-react';
+import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -15,8 +16,9 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Patient } from '@/types/patient';
 
 export function PatientDashboard() {
-  const { patients, selectPatient, fetchPatients, loading } = usePatientStore();
+  const { patients, selectPatient, fetchPatients, loading, updatePatient } = usePatientStore();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
   
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
@@ -53,12 +55,28 @@ export function PatientDashboard() {
     })();
   }, [patients]);
 
+  const isActive = (p: Patient) => p.status !== 'inactive';
+  const activeCount = patients.filter(isActive).length;
+  const inactiveCount = patients.length - activeCount;
+
   const filtered = patients.filter((p) => {
+    if (statusFilter === 'active' && !isActive(p)) return false;
+    if (statusFilter === 'inactive' && isActive(p)) return false;
     return `${p.firstName} ${p.lastName} ${p.mrn}`.toLowerCase().includes(search.toLowerCase());
   });
 
   const handleSelect = (id: string) => {
     navigate(`/chart/${id}`);
+  };
+
+  const handleToggleStatus = async (patient: Patient) => {
+    const next = isActive(patient) ? 'inactive' : 'active';
+    const ok = await updatePatient(patient.id, { status: next });
+    if (ok === false) {
+      toast.error('Failed to update status. If you just added this feature, run the latest database migration in Supabase.');
+      return;
+    }
+    toast.success(`${patient.firstName} ${patient.lastName} marked ${next}`);
   };
 
   return (
@@ -67,7 +85,9 @@ export function PatientDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 md:mb-8">
           <div>
             <h1 className="text-xl md:text-2xl font-semibold text-foreground">Patients</h1>
-            <p className="text-sm text-muted-foreground mt-1">{patients.length} patients in your panel</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {activeCount} active{inactiveCount > 0 ? ` · ${inactiveCount} inactive` : ''} in your panel
+            </p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             <Button variant="outline" onClick={() => setShowUploadDialog(true)} className="gap-2 flex-1 sm:flex-initial">
@@ -141,6 +161,16 @@ export function PatientDashboard() {
               className="pl-10"
             />
           </div>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active patients</SelectItem>
+              <SelectItem value="inactive">Inactive patients</SelectItem>
+              <SelectItem value="all">All patients</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-3">
@@ -166,6 +196,9 @@ export function PatientDashboard() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap ml-13 sm:ml-0">
+                  {patient.status === 'inactive' && (
+                    <Badge variant="outline" className="text-xs text-muted-foreground border-dashed">Inactive</Badge>
+                  )}
                   {patient.allergies.length > 0 && (
                     patient.allergies.every((a) => a.trim().toUpperCase() === 'NKDA') ? (
                       <Badge variant="secondary" className="gap-1 text-xs">NKDA</Badge>
@@ -193,6 +226,20 @@ export function PatientDashboard() {
                     }}
                   >
                     <Mic className="w-4 h-4 text-primary" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title={patient.status === 'inactive' ? 'Mark active' : 'Mark inactive'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleStatus(patient);
+                    }}
+                  >
+                    {patient.status === 'inactive'
+                      ? <UserCheck className="w-4 h-4 text-emerald-600" />
+                      : <UserX className="w-4 h-4 text-muted-foreground hover:text-foreground" />}
                   </Button>
                   <Button
                     variant="ghost"

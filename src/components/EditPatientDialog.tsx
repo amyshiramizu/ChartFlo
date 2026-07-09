@@ -25,6 +25,7 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
   const { clinics } = useClinic();
   const [form, setForm] = useState({
     firstName: '', lastName: '', dob: '', phone: '', allergies: '', mrn: '', gender: 'male' as 'male' | 'female', nkda: false,
+    status: 'active' as 'active' | 'inactive',
   });
   const [currentClinicId, setCurrentClinicId] = useState<string | null>(null);
   const [targetClinicId, setTargetClinicId] = useState<string>('');
@@ -42,6 +43,7 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
         mrn: patient.mrn,
         gender: patient.gender || 'male',
         nkda: isNkda,
+        status: patient.status === 'inactive' ? 'inactive' : 'active',
       });
     }
   }, [patient]);
@@ -89,21 +91,26 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
     onOpenChange(false);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.firstName || !form.lastName || !form.dob) return;
-    updatePatient(patient.id, {
+    const ok = await updatePatient(patient.id, {
       firstName: form.firstName,
       lastName: form.lastName,
       dob: form.dob,
       mrn: form.mrn,
       gender: form.gender,
       phone: form.phone || undefined,
+      status: form.status,
       allergies: form.nkda
         ? ['NKDA']
         : form.allergies
         ? form.allergies.split(',').map((a) => a.trim()).filter(Boolean)
         : [],
     });
+    if (ok === false) {
+      toast.error('Failed to save changes. If you just added the status feature, run the latest database migration in Supabase.');
+      return;
+    }
     onOpenChange(false);
   };
 
@@ -138,9 +145,23 @@ export function EditPatientDialog({ open, onOpenChange, patient }: EditPatientDi
               </select>
             </div>
           </div>
-          <div>
-            <Label htmlFor="editMrn">MRN</Label>
-            <Input id="editMrn" value={form.mrn} onChange={(e) => setForm({ ...form, mrn: e.target.value })} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="editMrn">MRN</Label>
+              <Input id="editMrn" value={form.mrn} onChange={(e) => setForm({ ...form, mrn: e.target.value })} />
+            </div>
+            <div>
+              <Label htmlFor="editStatus">Status</Label>
+              <select
+                id="editStatus"
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'inactive' })}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
           <div>
             <Label htmlFor="editPhone">Phone</Label>
