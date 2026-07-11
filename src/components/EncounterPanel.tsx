@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { toast } from 'sonner';
 import { Lock, Plus, Trash2, X, FilePlus2, Mic, MicOff } from 'lucide-react';
 import { useDictation } from '@/hooks/useDictation';
+import { evaluateCriticalVitals, createCriticalAlerts } from '@/lib/criticalAlerts';
 import type { Patient } from '@/types/patient';
 
 // ─── domain constants ────────────────────────────────────
@@ -207,6 +208,13 @@ export default function EncounterPanel({ patient, problems }: {
     if (error) {
       toast.error(`Save failed: ${error.message}. If you just added this feature, run the latest database migration in Supabase.`);
       return;
+    }
+
+    // Critical readings bypass the normal flow: alert immediately on save.
+    const findings = evaluateCriticalVitals({ bp: form.bp, hr: form.hr, temp: form.temp, spo2: form.spo2 });
+    if (findings.length && !form.vitals_refused) {
+      const n = await createCriticalAlerts(patient.id, `${patient.lastName}, ${patient.firstName}`, findings);
+      if (n > 0) toast.error(`${n} critical reading alert${n > 1 ? 's' : ''} created — see banner`, { duration: 8000 });
     }
 
     if (status === 'signed') {

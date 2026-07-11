@@ -22,6 +22,7 @@ import { getExternalTimeLog, clearExternalTimeLog, formatMonthlyTimeLog, formatD
 import { Send, CalendarDays } from 'lucide-react';
 import { BillingMeterCard } from '@/components/BillingMeterCard';
 import EncounterPanel from '@/components/EncounterPanel';
+import { evaluateCriticalVitals, createCriticalAlerts } from '@/lib/criticalAlerts';
 import { AfterVisitSummaryDialog } from '@/components/AfterVisitSummaryDialog';
 import { MonthlyCcmPdfButton } from '@/components/MonthlyCcmPdfButton';
 
@@ -344,6 +345,15 @@ function ChartContent() {
     const { error } = await supabase.from('patient_vitals').insert({ patient_id: id, ...vitals });
     if (error) return toast.error(error.message);
     toast.success('Vitals saved');
+    const findings = evaluateCriticalVitals({
+      bp: vitals.blood_pressure,
+      hr: vitals.heart_rate,
+      spo2: vitals.o2_saturation,
+    });
+    if (findings.length && patient) {
+      const n = await createCriticalAlerts(id, `${patient.lastName}, ${patient.firstName}`, findings);
+      if (n > 0) toast.error(`${n} critical reading alert${n > 1 ? 's' : ''} created — see banner`, { duration: 8000 });
+    }
   }
 
   async function addProblem() {
