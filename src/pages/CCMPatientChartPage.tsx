@@ -13,8 +13,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import {
   ArrowLeft, Plus, Check, X, FileText, Activity, HeartPulse, Save, Download, Trash2, Copy, Sparkles, Loader2,
-  RefreshCw, ClipboardList, Monitor, Clock,
+  RefreshCw, ClipboardList, Monitor, Clock, ChevronDown,
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
 import { toast } from 'sonner';
@@ -84,7 +85,9 @@ export default function CCMPatientChartPage() {
 function ChartContent() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { patients, fetchPatients } = usePatientStore();
+  const { patients, fetchPatients, updatePatient, addNote } = usePatientStore();
+  const [activeTab, setActiveTab] = useState('patient');
+  const [quickNote, setQuickNote] = useState('');
   const [enrollments, setEnrollments] = useState<any[]>([]);
   const [vitals, setVitals] = useState({ blood_pressure: '', heart_rate: '', weight: '', a1c: '', o2_saturation: '', height: '', respiratory_rate: '' });
   const [problems, setProblems] = useState<{ id: string; icd_code: string; description: string; program_tag: string }[]>([]);
@@ -557,26 +560,36 @@ function ChartContent() {
       {/* Header card */}
       <Card className="p-6 bg-card border-border">
         <div className="flex items-start justify-between mb-4">
-          <div>
-            <h1 className="text-3xl font-bold">{patient.lastName}, {patient.firstName}</h1>
-            <p className="text-muted-foreground mt-1">DOB {patient.dob} · MRN {patient.mrn}</p>
+          <div className="flex items-center gap-4 flex-wrap flex-1 min-w-0">
+            <div>
+              <h1 className="text-3xl font-bold uppercase">{patient.firstName} {patient.lastName}</h1>
+              <p className="text-muted-foreground mt-1">DOB {patient.dob} · MRN {patient.mrn}</p>
+            </div>
+            <Input
+              value={quickNote}
+              onChange={e => setQuickNote(e.target.value)}
+              onKeyDown={async e => {
+                if (e.key !== 'Enter' || !quickNote.trim()) return;
+                await addNote(patient.id, {
+                  id: crypto.randomUUID(),
+                  date: new Date().toISOString(),
+                  type: 'progress',
+                  subjective: quickNote.trim(),
+                  objective: '', assessment: '', plan: '',
+                  author: 'Quick note',
+                  dictated: false,
+                });
+                setQuickNote('');
+                toast.success('Quick note saved to the Notes tab');
+              }}
+              placeholder="Enter Notes here…"
+              className="max-w-sm bg-muted/50"
+            />
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-sm">{status}</Badge>
             <SessionTimer />
           </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {PROGRAMS.map(p => {
-            const on = enrolled(p);
-            return (
-              <Button key={p} variant="outline" size="sm" onClick={() => toggleEnroll(p)}
-                className={on ? 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10' : ''}>
-                {on ? <Check className="h-4 w-4 mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
-                {p} {on ? 'Enrolled' : 'Enroll'}
-              </Button>
-            );
-          })}
         </div>
       </Card>
 
@@ -599,33 +612,105 @@ function ChartContent() {
         </div>
       </div>
 
-      <Tabs defaultValue="patient" className="w-full">
-        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-none h-auto p-0 gap-6">
-          {['patient', 'clinical', 'billing', 'summary', 'assessments', 'care', 'encounters'].map((v, i) => (
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-none h-auto p-0 gap-6 flex-wrap">
+          {['patient', 'policy', 'clinical', 'billing', 'notes', 'user', 'care'].map((v, i) => (
             <TabsTrigger key={v} value={v}
               className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-3 pt-2 text-base">
-              {['Basic', 'Readings', 'Period', 'Summary', 'Assessments', 'Care Plan', 'Encounters'][i]}
+              {['Basic', 'Policy', 'Readings', 'Period', 'Notes', 'User', 'Care Plan'][i]}
             </TabsTrigger>
           ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className={`flex items-center gap-1 px-1 pb-3 pt-2 text-base font-medium transition-colors ${
+                ['encounters', 'meds', 'devices', 'summary', 'assessments'].includes(activeTab)
+                  ? 'border-b-2 border-primary text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}>
+                More <ChevronDown className="h-4 w-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setActiveTab('encounters')}>Encounter</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('meds')}>Meds</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('devices')}>Devices</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('summary')}>Summary</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setActiveTab('assessments')}>Assessments</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </TabsList>
 
-        {/* PATIENT INFO */}
+        {/* BASIC — editable demographics form */}
         <TabsContent value="patient" className="mt-6 space-y-4">
+          <BasicInfoForm patient={patient} problems={problems} enrollments={enrollments} onSave={updatePatient} />
+        </TabsContent>
+
+        {/* POLICY — program enrollment & coverage */}
+        <TabsContent value="policy" className="mt-6 space-y-4">
           <Card className="p-6">
-            <h3 className="text-sm font-semibold text-muted-foreground tracking-wider mb-4">DEMOGRAPHICS</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wider mb-4">PROGRAM ENROLLMENT</h3>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {PROGRAMS.map(p => {
+                const on = enrolled(p);
+                return (
+                  <Button key={p} variant="outline" size="sm" onClick={() => toggleEnroll(p)}
+                    className={on ? 'border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10' : ''}>
+                    {on ? <Check className="h-4 w-4 mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+                    {p} {on ? 'Enrolled' : 'Enroll'}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Enrollment drives billing eligibility: CCM requires two or more chronic conditions and documented consent;
+              RPM requires a device order. Time can only be logged to programs the patient is enrolled in.
+            </p>
+          </Card>
+        </TabsContent>
+
+        {/* NOTES — clinical notes timeline */}
+        <TabsContent value="notes" className="mt-6 space-y-3">
+          {[...patient.notes].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(n => (
+            <Card key={n.id} className="p-5">
+              <div className="flex items-center justify-between mb-2">
+                <Badge variant="outline" className="uppercase text-xs">{n.type}</Badge>
+                <span className="text-xs text-muted-foreground">{new Date(n.date).toLocaleString()} · {n.author}</span>
+              </div>
+              {n.subjective && <p className="text-sm whitespace-pre-wrap"><b>S:</b> {n.subjective}</p>}
+              {n.objective && <p className="text-sm whitespace-pre-wrap mt-1"><b>O:</b> {n.objective}</p>}
+              {n.assessment && <p className="text-sm whitespace-pre-wrap mt-1"><b>A:</b> {n.assessment}</p>}
+              {n.plan && <p className="text-sm whitespace-pre-wrap mt-1"><b>P:</b> {n.plan}</p>}
+            </Card>
+          ))}
+          {patient.notes.length === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              No notes yet. Use the “Enter Notes here…” box in the header for a quick note, or dictate a full note from the Charts page.
+            </p>
+          )}
+        </TabsContent>
+
+        {/* USER — care team assignment */}
+        <TabsContent value="user" className="mt-6 space-y-4">
+          <Card className="p-6">
+            <h3 className="text-sm font-semibold text-muted-foreground tracking-wider mb-4">CARE TEAM</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Info label="First name" value={patient.firstName} />
-              <Info label="Last name" value={patient.lastName} />
-              <Info label="DOB" value={patient.dob} />
-              <Info label="MRN" value={patient.mrn} />
-              <Info label="Gender" value={patient.gender} />
-              <Info label="Phone" value={patient.phone || '—'} />
-              <Info label="Provider" value={patient.provider || '—'} />
+              <Info label="PCP / Provider" value={patient.provider || '—'} />
               <Info label="Location" value={patient.location || '—'} />
             </div>
-            <Separator className="my-4" />
-            <Info label="Allergies" value={patient.allergies?.join(', ') || 'NKDA'} />
+            <p className="text-xs text-muted-foreground mt-4">
+              Edit the provider and location on the Basic tab. Manage clinic users under Database → Users.
+            </p>
           </Card>
+        </TabsContent>
+
+        {/* MEDS */}
+        <TabsContent value="meds" className="mt-6">
+          <PatientMedsCard patient={patient} />
+        </TabsContent>
+
+        {/* DEVICES */}
+        <TabsContent value="devices" className="mt-6">
+          <PatientDevicesCard patientId={patient.id} />
         </TabsContent>
 
         {/* SUMMARY */}
@@ -1024,6 +1109,211 @@ function estReimb(min: number) {
 
 function Info({ label, value }: { label: string; value: string }) {
   return <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</p><p className="font-medium">{value}</p></div>;
+}
+
+// ─── Basic tab: editable demographics form (reference-style) ───
+function BasicInfoForm({ patient, problems, enrollments, onSave }: {
+  patient: any;
+  problems: { icd_code: string; description: string }[];
+  enrollments: any[];
+  onSave: (id: string, updates: any) => Promise<boolean | void>;
+}) {
+  const seed = () => ({
+    firstName: patient.firstName || '',
+    lastName: patient.lastName || '',
+    dob: patient.dob || '',
+    mrn: patient.mrn || '',
+    gender: patient.gender || 'male',
+    phone: patient.phone || '',
+    provider: patient.provider || '',
+    location: patient.location || '',
+    status: (patient.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
+    allergies: (patient.allergies || []).join(', '),
+  });
+  const [form, setForm] = useState(seed());
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setForm(seed()); }, [patient.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function submit() {
+    setSaving(true);
+    const ok = await onSave(patient.id, {
+      firstName: form.firstName,
+      lastName: form.lastName,
+      dob: form.dob,
+      mrn: form.mrn,
+      gender: form.gender,
+      phone: form.phone || undefined,
+      provider: form.provider || undefined,
+      location: form.location || undefined,
+      status: form.status,
+      allergies: form.allergies ? form.allergies.split(',').map((a: string) => a.trim()).filter(Boolean) : [],
+    });
+    setSaving(false);
+    if (ok === false) { toast.error('Failed to save changes'); return; }
+    toast.success('Patient updated');
+  }
+
+  const field = (label: string, key: keyof ReturnType<typeof seed>, type = 'text') => (
+    <div>
+      <Label className="text-sm font-medium mb-1.5 block">{label}</Label>
+      <Input type={type} value={form[key] as string} onChange={e => setForm({ ...form, [key]: e.target.value })} />
+    </div>
+  );
+
+  return (
+    <Card className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {field('First Name', 'firstName')}
+        {field('Last Name', 'lastName')}
+        <div>
+          <Label className="text-sm font-medium mb-1.5 block">Program</Label>
+          <div className="flex flex-wrap items-center gap-1.5 border border-input rounded-md px-3 py-2 min-h-[40px]">
+            {enrollments.length > 0
+              ? enrollments.map((e: any) => <Badge key={e.program} variant="secondary">{e.program}</Badge>)
+              : <span className="text-sm text-muted-foreground">Not enrolled — see Policy tab</span>}
+          </div>
+        </div>
+        {field('Date of Birth', 'dob', 'date')}
+        {field('MRN / External Id', 'mrn')}
+        <div>
+          <Label className="text-sm font-medium mb-1.5 block">Gender</Label>
+          <Select value={form.gender} onValueChange={v => setForm({ ...form, gender: v })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {field('Phone', 'phone')}
+        {field('PCP / Provider', 'provider')}
+        {field('Location / Facility', 'location')}
+        <div>
+          <Label className="text-sm font-medium mb-1.5 block">Status</Label>
+          <Select value={form.status} onValueChange={v => setForm({ ...form, status: v as 'active' | 'inactive' })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="md:col-span-2">
+          <Label className="text-sm font-medium mb-1.5 block">Allergies (comma-separated)</Label>
+          <Input value={form.allergies} onChange={e => setForm({ ...form, allergies: e.target.value })} placeholder="NKDA" />
+        </div>
+        <div className="md:col-span-3">
+          <Label className="text-sm font-medium mb-1.5 block">ICD-10 Codes</Label>
+          <div className="flex flex-wrap items-center gap-1.5 border border-input rounded-md px-3 py-2 min-h-[40px]">
+            {problems.length > 0
+              ? problems.map(p => <Badge key={p.icd_code} variant="secondary" className="font-mono" title={p.description}>{p.icd_code}</Badge>)
+              : <span className="text-sm text-muted-foreground">No diagnoses — add them on the Readings tab</span>}
+          </div>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border">
+        <Button variant="outline" onClick={() => setForm(seed())}>Reset</Button>
+        <Button onClick={submit} disabled={saving} className="min-w-[110px]">
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Meds tab ───
+function PatientMedsCard({ patient }: { patient: any }) {
+  const { fetchPatients } = usePatientStore();
+  const [form, setForm] = useState({ name: '', dosage: '', frequency: '' });
+  const activeMeds = (patient.medications || []).filter((m: any) => m.active);
+
+  async function add() {
+    if (!form.name.trim()) { toast.error('Medication name is required'); return; }
+    const { error } = await supabase.from('medications').insert({
+      patient_id: patient.id,
+      name: form.name.trim(),
+      dosage: form.dosage || '',
+      frequency: form.frequency || '',
+      route: 'PO',
+      prescribed_date: new Date().toISOString().split('T')[0],
+      active: true,
+    });
+    if (error) { toast.error(`Add failed: ${error.message}`); return; }
+    setForm({ name: '', dosage: '', frequency: '' });
+    await fetchPatients();
+    toast.success('Medication added');
+  }
+
+  async function remove(medId: string) {
+    const { error } = await supabase.from('medications').delete().eq('id', medId);
+    if (error) { toast.error(`Remove failed: ${error.message}`); return; }
+    await fetchPatients();
+  }
+
+  return (
+    <Card className="p-6">
+      <h3 className="text-sm font-semibold text-muted-foreground tracking-wider mb-4">MEDICATIONS ({activeMeds.length})</h3>
+      <div className="space-y-2 mb-4">
+        {activeMeds.map((m: any) => (
+          <div key={m.id} className="flex items-center justify-between py-2 border-b border-border/40">
+            <div><span className="font-medium">{m.name}</span> <span className="text-muted-foreground text-sm ml-2">{m.dosage} · {m.frequency}</span></div>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => remove(m.id)}>
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            </Button>
+          </div>
+        ))}
+        {activeMeds.length === 0 && <p className="text-sm text-muted-foreground py-4">No active medications.</p>}
+      </div>
+      <div className="flex gap-2">
+        <Input placeholder="Name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="flex-1" />
+        <Input placeholder="Dose" value={form.dosage} onChange={e => setForm({ ...form, dosage: e.target.value })} className="w-28" />
+        <Input placeholder="Freq" value={form.frequency} onChange={e => setForm({ ...form, frequency: e.target.value })} className="w-24" />
+        <Button onClick={add} className="gap-1"><Plus className="h-4 w-4" /> Add</Button>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Devices tab ───
+function PatientDevicesCard({ patientId }: { patientId: string }) {
+  const [devices, setDevices] = useState<any[]>([]);
+  const load = async () => {
+    const { data } = await supabase.from('rpm_devices').select('*').eq('patient_id', patientId).order('assigned_date', { ascending: false });
+    setDevices(data || []);
+  };
+  useEffect(() => { load(); }, [patientId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggle(d: any) {
+    const next = d.status === 'active' ? 'returned' : 'active';
+    const { error } = await supabase.from('rpm_devices').update({ status: next }).eq('id', d.id);
+    if (error) { toast.error(error.message); return; }
+    load();
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-muted-foreground tracking-wider">RPM DEVICES ({devices.length})</h3>
+        <span className="text-xs text-muted-foreground">Assign new devices under Database → Devices</span>
+      </div>
+      <div className="space-y-2">
+        {devices.map(d => (
+          <div key={d.id} className="flex items-center justify-between py-2 border-b border-border/40">
+            <div>
+              <span className="font-medium">{d.device_type}</span>
+              <span className="text-muted-foreground text-sm ml-2">{d.model || ''} {d.serial_number ? `· SN ${d.serial_number}` : ''} · assigned {d.assigned_date}</span>
+            </div>
+            <button onClick={() => toggle(d)} title="Click to toggle active/returned">
+              <Badge variant="outline" className={d.status === 'active' ? 'border-emerald-500/40 text-emerald-500 cursor-pointer' : 'cursor-pointer'}>
+                {d.status}
+              </Badge>
+            </button>
+          </div>
+        ))}
+        {devices.length === 0 && <p className="text-sm text-muted-foreground py-4">No devices assigned to this patient.</p>}
+      </div>
+    </Card>
+  );
 }
 function Stat({ label, value }: { label: string; value: string }) {
   return <div><p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">{label}</p><p className="text-xl font-bold">{value}</p></div>;

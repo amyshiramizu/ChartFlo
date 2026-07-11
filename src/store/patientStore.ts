@@ -500,6 +500,8 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
     if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
     if (updates.allergies !== undefined) dbUpdates.allergies = updates.allergies;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.provider !== undefined) dbUpdates.provider = updates.provider;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
 
     if (Object.keys(dbUpdates).length > 0) {
       const { error } = await supabase.from('patients').update(dbUpdates).eq('id', id);
