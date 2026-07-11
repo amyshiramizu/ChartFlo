@@ -14,7 +14,6 @@ import AuthPage from "./pages/AuthPage.tsx";
 import PFCallbackPage from "./pages/PFCallbackPage.tsx";
 import CCMDashboardPage from "./pages/CCMDashboardPage.tsx";
 import RPMDashboardPage from "./pages/RPMDashboardPage.tsx";
-import DispatchPage from "./pages/DispatchPage.tsx";
 import CCMPatientChartPage from "./pages/CCMPatientChartPage.tsx";
 import TodayPage from "./pages/TodayPage.tsx";
 import ChartPage from "./pages/ChartPage.tsx";
@@ -75,7 +74,6 @@ const AppRoutes = () => {
       <Route path="/chart/:id" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
       <Route path="/ccm/patient/:id" element={<ProtectedRoute><CCMPatientChartPage /></ProtectedRoute>} />
       <Route path="/rpm" element={<ProtectedRoute><RPMDashboardPage /></ProtectedRoute>} />
-      <Route path="/dispatch" element={<ProtectedRoute><DispatchPage /></ProtectedRoute>} />
       <Route path="/codes" element={<ProtectedRoute><CodeLookupPage /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
       <Route path="/quality" element={<ProtectedRoute><QualityPage /></ProtectedRoute>} />

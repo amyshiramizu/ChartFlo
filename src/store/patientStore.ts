@@ -410,11 +410,36 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
       planPrompt: t.plan_prompt,
     }));
 
-    // Apply per-user overrides for built-in default templates (stored locally).
+    // Apply per-user overrides for built-in default templates. Cloud copy in
+    // user_settings wins so edits follow the user across devices; localStorage
+    // is a fallback for databases that predate the template_overrides column.
     let overrides: Record<string, Partial<NoteTemplate>> = {};
     try {
       overrides = JSON.parse(localStorage.getItem('chart_scribe_default_template_overrides') || '{}');
     } catch {}
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('template_overrides' as any)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const cloud = (settings as any)?.template_overrides;
+        if (cloud && Object.keys(cloud).length > 0) {
+          overrides = cloud;
+          localStorage.setItem('chart_scribe_default_template_overrides', JSON.stringify(cloud));
+        } else if (Object.keys(overrides).length > 0) {
+          // One-time upload of pre-existing local overrides to the cloud.
+          await supabase.from('user_settings').upsert(
+            { user_id: user.id, template_overrides: overrides } as any,
+            { onConflict: 'user_id' },
+          );
+        }
+      }
+    } catch (e) {
+      console.warn('Template override sync skipped (run latest DB migration to enable):', e);
+    }
     const mergedDefaults = defaultTemplates.map(t =>
       overrides[t.id] ? { ...t, ...overrides[t.id] } : t
     );
@@ -660,14 +685,30 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
   updateTemplate: async (id, updates) => {
     const isDefault = defaultTemplates.some(t => t.id === id);
     if (isDefault) {
-      // Built-in defaults aren't in the DB — persist edits as a local override.
+      // Built-in defaults aren't rows in note_templates — persist edits as a
+      // per-user override in user_settings (cloud, follows the user across
+      // devices), with localStorage as a same-device fallback/cache.
+      let overrides: Record<string, Partial<NoteTemplate>> = {};
       try {
-        const raw = localStorage.getItem('chart_scribe_default_template_overrides') || '{}';
-        const overrides = JSON.parse(raw);
-        overrides[id] = { ...(overrides[id] || {}), ...updates };
+        overrides = JSON.parse(localStorage.getItem('chart_scribe_default_template_overrides') || '{}');
+      } catch {}
+      overrides[id] = { ...(overrides[id] || {}), ...updates };
+      try {
         localStorage.setItem('chart_scribe_default_template_overrides', JSON.stringify(overrides));
       } catch (e) {
-        console.error('Failed to persist default template override:', e);
+        console.error('Failed to persist default template override locally:', e);
+      }
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { error } = await supabase.from('user_settings').upsert(
+            { user_id: user.id, template_overrides: overrides } as any,
+            { onConflict: 'user_id' },
+          );
+          if (error) console.warn('Cloud template override sync failed (run latest DB migration to enable):', error.message);
+        }
+      } catch (e) {
+        console.warn('Cloud template override sync failed:', e);
       }
       set((s) => ({
         templates: s.templates.map(t => t.id === id ? { ...t, ...updates } : t),
