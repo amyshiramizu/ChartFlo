@@ -13,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import {
   ArrowLeft, Plus, Check, X, FileText, Activity, HeartPulse, Save, Download, Trash2, Copy, Sparkles, Loader2,
-  RefreshCw, ClipboardList, Monitor,
+  RefreshCw, ClipboardList, Monitor, Clock,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { getExternalTimeLog, clearExternalTimeLog, formatMonthlyTimeLog, formatDailyTimeLog, sendSOAPToExtension } from '@/lib/practiceFusionBridge';
 import { Send, CalendarDays } from 'lucide-react';
 import { BillingMeterCard } from '@/components/BillingMeterCard';
+import EncounterPanel from '@/components/EncounterPanel';
 import { AfterVisitSummaryDialog } from '@/components/AfterVisitSummaryDialog';
 import { MonthlyCcmPdfButton } from '@/components/MonthlyCcmPdfButton';
 
@@ -550,7 +551,10 @@ function ChartContent() {
             <h1 className="text-3xl font-bold">{patient.lastName}, {patient.firstName}</h1>
             <p className="text-muted-foreground mt-1">DOB {patient.dob} · MRN {patient.mrn}</p>
           </div>
-          <Badge variant="outline" className="text-sm">{status}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="text-sm">{status}</Badge>
+            <SessionTimer />
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {PROGRAMS.map(p => {
@@ -587,10 +591,10 @@ function ChartContent() {
 
       <Tabs defaultValue="patient" className="w-full">
         <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-none h-auto p-0 gap-6">
-          {['patient', 'summary', 'care', 'assessments', 'clinical', 'billing'].map((v, i) => (
+          {['patient', 'clinical', 'billing', 'summary', 'assessments', 'care', 'encounters'].map((v, i) => (
             <TabsTrigger key={v} value={v}
               className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-3 pt-2 text-base">
-              {['Patient Info', 'Summary of Care', 'Care Management', 'Assessments', 'Clinical Data', 'Billing'][i]}
+              {['Basic', 'Readings', 'Period', 'Summary', 'Assessments', 'Care Plan', 'Encounters'][i]}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -972,8 +976,31 @@ function ChartContent() {
             </table>
           </Card>
         </TabsContent>
+
+        {/* ENCOUNTERS */}
+        <TabsContent value="encounters" className="mt-6">
+          <Card className="p-4 md:p-6">
+            <EncounterPanel patient={patient} problems={problems} />
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function SessionTimer() {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => setSeconds(s => s + 1), 1000);
+    return () => clearInterval(i);
+  }, []);
+  const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  const s = String(seconds % 60).padStart(2, '0');
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground text-sm font-semibold rounded-md px-3 py-1.5 tabular-nums" title="Time on this chart">
+      <Clock className="w-4 h-4" /> {h}:{m}:{s}
+    </span>
   );
 }
 
