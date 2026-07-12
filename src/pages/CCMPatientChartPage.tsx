@@ -1129,6 +1129,9 @@ function BasicInfoForm({ patient, problems, enrollments, onSave }: {
     location: patient.location || '',
     status: (patient.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive',
     allergies: (patient.allergies || []).join(', '),
+    insurance: patient.insurance || '',
+    zipCode: patient.zipCode || '',
+    dischargeDate: patient.dischargeDate || '',
   });
   const [form, setForm] = useState(seed());
   const [saving, setSaving] = useState(false);
@@ -1147,6 +1150,9 @@ function BasicInfoForm({ patient, problems, enrollments, onSave }: {
       location: form.location || undefined,
       status: form.status,
       allergies: form.allergies ? form.allergies.split(',').map((a: string) => a.trim()).filter(Boolean) : [],
+      insurance: form.insurance || undefined,
+      zipCode: form.zipCode || undefined,
+      dischargeDate: form.dischargeDate,
     });
     setSaving(false);
     if (ok === false) { toast.error('Failed to save changes'); return; }
@@ -1198,6 +1204,9 @@ function BasicInfoForm({ patient, problems, enrollments, onSave }: {
             </SelectContent>
           </Select>
         </div>
+        {field('Insurance', 'insurance')}
+        {field('Zip Code', 'zipCode')}
+        {field('Discharge Date', 'dischargeDate', 'date')}
         <div className="md:col-span-2">
           <Label className="text-sm font-medium mb-1.5 block">Allergies (comma-separated)</Label>
           <Input value={form.allergies} onChange={e => setForm({ ...form, allergies: e.target.value })} placeholder="NKDA" />

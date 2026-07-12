@@ -14,6 +14,9 @@ export interface Patient {
   location?: string;
   /** Defaults to 'active' when absent (e.g. rows created before the status migration). */
   status?: 'active' | 'inactive';
+  insurance?: string;
+  zipCode?: string;
+  dischargeDate?: string;
 }
 
 export interface Medication {
