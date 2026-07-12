@@ -62,7 +62,19 @@ aws cognito-idp create-user-pool-client \
       374 time entries, 360 assessments, 42 notes, 73 problems, 26 care
       plans, 26 vitals, 57 enrollments, 3 clinics, 6 members - all MATCH
 
-## Phase 3 (next): auth swap to Cognito, then Lambda function ports
+## Phase 3 progress (auth)
+
+- [x] `custom:legacy_id` attribute added to the user pool
+- [x] All 4 users imported into Cognito (email verified, invite emails
+      suppressed until cutover; status FORCE_CHANGE_PASSWORD)
+- [x] `auth.uid()` on Aurora now resolves Cognito JWTs: prefers the
+      `custom:legacy_id` claim (the Supabase-era UUID that keys all data),
+      falls back to `sub`
+- [ ] Data-plane API: PostgREST on App Runner against Aurora (authenticator
+      role, grants, VPC connector, Cognito JWKS validation)
+- [ ] GoTrue-compatible auth endpoints (token/user/logout/recover) so the
+      frontend's supabase-js keeps working with only a URL/key change
+- [ ] Password-reset emails to all users at cutover
 
 ## Cost note
 
