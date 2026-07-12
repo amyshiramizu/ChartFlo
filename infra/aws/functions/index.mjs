@@ -37,6 +37,17 @@ async function aiTool({ system, user, toolName, schema, model = 'smart', maxToke
   return block.toolUse.input;
 }
 
+/** Plain text completion (for functions that used chat content, not tools). */
+async function aiText({ system, user, model = 'fast', maxTokens = 4096 }) {
+  const r = await bedrock.send(new ConverseCommand({
+    modelId: MODELS[model],
+    system: system ? [{ text: system }] : undefined,
+    messages: [{ role: 'user', content: [{ text: user }] }],
+    inferenceConfig: { maxTokens },
+  }));
+  return (r.output?.message?.content || []).map(c => c.text || '').join('');
+}
+
 // ─── structure-soap ──────────────────────────────────────
 // Port of supabase/functions/structure-soap — prompt preserved verbatim.
 import { STRUCTURE_SOAP_SYSTEM } from './prompts/structure-soap.mjs';
@@ -77,19 +88,23 @@ async function structureSoap(body) {
 }
 
 // ─── router ──────────────────────────────────────────────
+import { PORTED } from './fns/registry.mjs';
+
 const ROUTES = {
   'structure-soap': structureSoap,
 };
+const CTX = { aiTool, aiText, json };
 
 export const handler = async (event) => {
   const method = event.requestContext?.http?.method || 'POST';
   if (method === 'OPTIONS') return { statusCode: 204, headers: CORS };
   const name = (event.pathParameters?.proxy || event.rawPath || '').split('/').filter(Boolean).pop();
   const fn = ROUTES[name];
-  if (!fn) return json(501, { error: `Function "${name}" not ported to AWS yet` });
+  const ported = PORTED[name];
+  if (!fn && !ported) return json(501, { error: `Function "${name}" not ported to AWS yet` });
   try {
     const body = event.body ? JSON.parse(event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString() : event.body) : {};
-    return await fn(body, event);
+    return fn ? await fn(body, event) : await ported(body, CTX);
   } catch (e) {
     console.error(`${name} error:`, e);
     return json(500, { error: e.message || 'Unknown error' });

@@ -93,9 +93,23 @@ aws cognito-idp create-user-pool-client \
 - [x] First port verified end to end: structure-soap (prompt preserved
       verbatim, Bedrock tool-choice replaces the Lovable gateway) returned
       a structured SOAP note with ICD-10 codes through the gateway
-- [ ] Port remaining 24 functions into the router (mechanical from here);
-      transcribe-audio maps to Amazon Transcribe; pf-* need Practice
-      Fusion re-auth (secrets are Lovable-managed and not exportable)
+- [x] 14 of 25 functions ported and deployed: structure-soap plus the AI
+      batch (suggest-icd/cpt/mips, extract-medications/screenings/
+      clinical-data, generate-avs, generate-ccm-care-plan,
+      summarize-for-family, group-plan-by-dx, ccm-log-assist,
+      ccm-batch-parse, code-lookup). Prompts verbatim; router injects
+      aiTool/aiText helpers; routing + input validation verified live.
+- [ ] USER ACTION: submit the Anthropic use-case form in the Bedrock
+      console (Bedrock -> Model access) — the account gated Anthropic
+      models after the first verified calls; all AI functions 500 with
+      the form message until submitted (instant approval, one time)
+- [ ] Remaining ports: transcribe-audio (Amazon Transcribe),
+      compute-monthly-superbill / resolve-active-patient / export-fhir /
+      clinic-member-statuses / invite + resend-clinic-invite (Data API +
+      Cognito), dispatch-* (feature removed from UI — may retire),
+      pf-oauth-token / pf-fhir-import (need Practice Fusion re-auth;
+      secrets are Lovable-managed and not exportable), generate-avs and
+      suggest-icd DB side-writes
 - [ ] Storage (clinic logos) to S3
 - [ ] Password-reset emails to all users at cutover
 
