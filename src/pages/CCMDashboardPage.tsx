@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import CCMBatchUpload from '@/components/CCMBatchUpload';
 import PeriodMetricsBar from '@/components/PeriodMetricsBar';
+import CriticalAlertsBanner from '@/components/CriticalAlertsBanner';
 import { Checkbox } from '@/components/ui/checkbox';
 
 // Medicare CCM billable activities per CMS guidelines
@@ -176,10 +177,28 @@ export default function CCMDashboardPage({ program = 'CCM' }: { program?: 'CCM' 
     setLocations(Array.from(locs).sort());
   }, [patients]);
 
-  // Load settings
+  // Load settings — cloud copy (user_settings.preferences) wins so the
+  // practice name follows the user across devices; localStorage is fallback.
   useEffect(() => {
-    const saved = localStorage.getItem(`${programLabel.toLowerCase()}_practice_name`);
+    const key = `${programLabel.toLowerCase()}_practice_name`;
+    const saved = localStorage.getItem(key);
     if (saved) setPracticeName(saved);
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data } = await supabase
+          .from('user_settings')
+          .select('preferences' as any)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const cloud = (data as any)?.preferences?.[key];
+        if (cloud) {
+          setPracticeName(cloud);
+          localStorage.setItem(key, cloud);
+        }
+      } catch { /* pre-migration DB: local value stands */ }
+    })();
   }, []);
 
   // Timer tick
@@ -467,8 +486,24 @@ export default function CCMDashboardPage({ program = 'CCM' }: { program?: 'CCM' 
     setNewLocation('');
   }
   function removeLocation(name: string) { setLocations(prev => prev.filter(l => l !== name)); }
-  function savePracticeName() {
-    localStorage.setItem(`${programLabel.toLowerCase()}_practice_name`, practiceName);
+  async function savePracticeName() {
+    const key = `${programLabel.toLowerCase()}_practice_name`;
+    localStorage.setItem(key, practiceName);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('user_settings')
+          .select('preferences' as any)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        const preferences = { ...((data as any)?.preferences || {}), [key]: practiceName };
+        await supabase.from('user_settings').upsert(
+          { user_id: user.id, preferences } as any,
+          { onConflict: 'user_id' },
+        );
+      }
+    } catch { /* pre-migration DB: saved locally only */ }
     toast.success('Practice name saved');
   }
 
@@ -547,6 +582,7 @@ export default function CCMDashboardPage({ program = 'CCM' }: { program?: 'CCM' 
       <AppSidebar />
       <div className="flex-1 flex flex-col">
         <MobileHeader />
+        <CriticalAlertsBanner />
         {/* ─── Period Metrics (full-width top strip) ── */}
         <PeriodMetricsBar program={programLabel} />
         <div className="flex-1 p-4 md:p-6 overflow-auto">

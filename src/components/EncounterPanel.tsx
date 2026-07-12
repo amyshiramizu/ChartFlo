@@ -11,7 +11,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Lock, Plus, Trash2, X, FilePlus2 } from 'lucide-react';
+import { Lock, Plus, Trash2, X, FilePlus2, Mic, MicOff } from 'lucide-react';
+import { useDictation } from '@/hooks/useDictation';
+import { evaluateCriticalVitals, createCriticalAlerts } from '@/lib/criticalAlerts';
 import type { Patient } from '@/types/patient';
 
 // ─── domain constants ────────────────────────────────────
@@ -104,6 +106,21 @@ export default function EncounterPanel({ patient, problems }: {
   const [saving, setSaving] = useState(false);
   const [medDialogOpen, setMedDialogOpen] = useState(false);
   const [medForm, setMedForm] = useState({ name: '', dosage: '', frequency: '' });
+  const { isListening, transcript, startListening, stopListening, resetTranscript, isSupported } = useDictation();
+
+  // Same behavior as chart notes (NoteEditor): toggle the mic, and on stop
+  // append the transcript to the SOAP note.
+  const handleDictate = () => {
+    if (isListening) {
+      stopListening();
+      if (transcript) {
+        setForm(f => ({ ...f, soap_note: f.soap_note ? `${f.soap_note} ${transcript}` : transcript }));
+        resetTranscript();
+      }
+    } else {
+      startListening();
+    }
+  };
 
   const fetchEncounters = useCallback(async () => {
     const { data, error } = await supabase
@@ -191,6 +208,13 @@ export default function EncounterPanel({ patient, problems }: {
     if (error) {
       toast.error(`Save failed: ${error.message}. If you just added this feature, run the latest database migration in Supabase.`);
       return;
+    }
+
+    // Critical readings bypass the normal flow: alert immediately on save.
+    const findings = evaluateCriticalVitals({ bp: form.bp, hr: form.hr, temp: form.temp, spo2: form.spo2 });
+    if (findings.length && !form.vitals_refused) {
+      const n = await createCriticalAlerts(patient.id, `${patient.lastName}, ${patient.firstName}`, findings);
+      if (n > 0) toast.error(`${n} critical reading alert${n > 1 ? 's' : ''} created — see banner`, { duration: 8000 });
     }
 
     if (status === 'signed') {
@@ -431,8 +455,31 @@ export default function EncounterPanel({ patient, problems }: {
                 Patient refused taking measurements
               </label>
             </Card>
-            <div>
-              <Label>SOAP Note</Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>SOAP Note</Label>
+                {!locked && isSupported && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={isListening ? 'destructive' : 'secondary'}
+                    onClick={handleDictate}
+                    className="gap-2"
+                  >
+                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    {isListening ? 'Stop Dictation' : 'Dictate SOAP Note'}
+                  </Button>
+                )}
+              </div>
+              {isListening && (
+                <Card className="p-3 border-destructive/30 bg-destructive/5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                    <span className="text-sm font-medium text-destructive">Listening...</span>
+                  </div>
+                  {transcript && <p className="text-sm text-muted-foreground mt-2 italic">{transcript}</p>}
+                </Card>
+              )}
               <Textarea rows={6} value={form.soap_note} onChange={e => setForm({ ...form, soap_note: e.target.value })} disabled={locked} placeholder="Subjective, Objective, Assessment, Plan…" />
             </div>
           </div>
