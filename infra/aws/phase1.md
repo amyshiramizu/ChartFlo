@@ -54,9 +54,15 @@ aws cognito-idp create-user-pool-client \
       policies → replaced by S3 in a later phase; `GRANT ... TO service_role`
       → role is Supabase-internal)
 - [x] Verified: 27 application tables, 58 RLS policies on Aurora
-- [ ] Export data from Supabase (needs `SUPABASE_DB_PASSWORD` in the
-      environment) and import via Data API
-- [ ] Row-count checksums per table
+- [x] Data migrated via the `chartflo-data-migrate` Lambda (Supabase REST
+      export as the clinic user -> Data API import; Supabase dashboard access
+      was unavailable because the project is Lovable-managed). App-level
+      triggers were disabled during import and re-enabled after.
+- [x] Row counts verified on all 27 tables: 516 patients, 352 medications,
+      374 time entries, 360 assessments, 42 notes, 73 problems, 26 care
+      plans, 26 vitals, 57 enrollments, 3 clinics, 6 members - all MATCH
+
+## Phase 3 (next): auth swap to Cognito, then Lambda function ports
 
 ## Cost note
 
