@@ -55,18 +55,113 @@ const MIGRATION_HINT = 'This table may not exist yet — run the latest database
 
 // ─── Patients tab ────────────────────────────────────────
 
+interface PatientGridExtras {
+  lastReadingDays: number | null;
+  systolic: string;
+  diastolic: string;
+  pulse: string;
+  complianceDays: number; // distinct days with readings this month
+  rpmMinutes: number;
+  ccmMinutes: number;
+  dxCodes: string[];
+}
+
 function PatientsTab() {
   const { patients, fetchPatients } = usePatientStore();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState<Patient | null>(null);
+  const [extras, setExtras] = useState<Map<string, PatientGridExtras>>(new Map());
 
   useEffect(() => { if (patients.length === 0) fetchPatients(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Batch-load vitals, monthly minutes, and diagnoses for the grid columns
+  useEffect(() => {
+    if (patients.length === 0) return;
+    (async () => {
+      const ids = patients.map(p => p.id);
+      const monthStart = `${new Date().toISOString().slice(0, 7)}-01`;
+      const map = new Map<string, PatientGridExtras>();
+      const blank = (): PatientGridExtras => ({
+        lastReadingDays: null, systolic: '', diastolic: '', pulse: '',
+        complianceDays: 0, rpmMinutes: 0, ccmMinutes: 0, dxCodes: [],
+      });
+      const CHUNK = 200;
+      for (let i = 0; i < ids.length; i += CHUNK) {
+        const slice = ids.slice(i, i + CHUNK);
+        const [vitalsRes, timeRes, problemsRes] = await Promise.all([
+          supabase.from('patient_vitals')
+            .select('patient_id, blood_pressure, heart_rate, recorded_at')
+            .in('patient_id', slice)
+            .order('recorded_at', { ascending: false })
+            .limit(2000),
+          supabase.from('ccm_time_entries')
+            .select('patient_id, minutes, program')
+            .in('patient_id', slice)
+            .gte('date', monthStart),
+          supabase.from('patient_problems')
+            .select('patient_id, icd_code')
+            .in('patient_id', slice),
+        ]);
+
+        for (const v of (vitalsRes.data || []) as any[]) {
+          const x = map.get(v.patient_id) || blank();
+          // Rows are newest-first: the first row per patient is the latest reading
+          if (x.lastReadingDays === null && v.recorded_at) {
+            x.lastReadingDays = Math.max(0,
+              Math.round(((Date.now() - new Date(v.recorded_at).getTime()) / 86_400_000) * 10) / 10);
+            const bp = (v.blood_pressure || '').match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
+            if (bp) { x.systolic = bp[1]; x.diastolic = bp[2]; }
+            x.pulse = v.heart_rate || '';
+          }
+          if (v.recorded_at && v.recorded_at >= monthStart) {
+            x.complianceDays += 0; // counted below via day set
+          }
+          map.set(v.patient_id, x);
+        }
+        // Distinct reading days this month per patient
+        const daySets = new Map<string, Set<string>>();
+        for (const v of (vitalsRes.data || []) as any[]) {
+          if (!v.recorded_at || v.recorded_at < monthStart) continue;
+          const s = daySets.get(v.patient_id) || new Set<string>();
+          s.add(String(v.recorded_at).slice(0, 10));
+          daySets.set(v.patient_id, s);
+        }
+        for (const [pid, days] of daySets) {
+          const x = map.get(pid) || blank();
+          x.complianceDays = days.size;
+          map.set(pid, x);
+        }
+        for (const t of (timeRes.data || []) as any[]) {
+          const x = map.get(t.patient_id) || blank();
+          if (t.program === 'RPM') x.rpmMinutes += t.minutes || 0;
+          else x.ccmMinutes += t.minutes || 0;
+          map.set(t.patient_id, x);
+        }
+        for (const pr of (problemsRes.data || []) as any[]) {
+          const x = map.get(pr.patient_id) || blank();
+          if (pr.icd_code) x.dxCodes.push(pr.icd_code);
+          map.set(pr.patient_id, x);
+        }
+      }
+      setExtras(map);
+    })();
+  }, [patients]);
+
+  const daysLeftInMonth = (() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate();
+  })();
+
   const filtered = patients.filter(p =>
-    `${p.firstName} ${p.lastName} ${p.mrn} ${p.provider || ''} ${p.location || ''}`
+    `${p.firstName} ${p.lastName} ${p.mrn} ${p.provider || ''} ${p.location || ''} ${p.insurance || ''} ${p.zipCode || ''} ${(extras.get(p.id)?.dxCodes || []).join(' ')}`
       .toLowerCase().includes(search.toLowerCase()),
   );
+
+  const blankX: PatientGridExtras = {
+    lastReadingDays: null, systolic: '', diastolic: '', pulse: '',
+    complianceDays: 0, rpmMinutes: 0, ccmMinutes: 0, dxCodes: [],
+  };
 
   return (
     <Card className="p-4">
@@ -74,8 +169,17 @@ function PatientsTab() {
         search={search}
         setSearch={setSearch}
         onExport={() => exportCsv('patients.csv',
-          ['Last Name', 'First Name', 'DOB', 'MRN', 'Gender', 'Phone', 'Provider', 'Location', 'Status'],
-          filtered.map(p => [p.lastName, p.firstName, p.dob, p.mrn, p.gender, p.phone || '', p.provider || '', p.location || '', p.status || 'active']))}
+          ['Last Name', 'First Name', 'DOB', 'MRN', 'Last Reading (days)', 'Systolic', 'Diastolic', 'Pulse',
+           'Compliance (days)', 'RPM Min', 'CCM Min', 'Days Left', 'Setup Date', 'PCP', 'Discharge Date',
+           'Insurance', 'Zip', 'Diagnosis Codes', 'Status'],
+          filtered.map(p => {
+            const x = extras.get(p.id) || blankX;
+            return [p.lastName, p.firstName, p.dob, p.mrn,
+              x.lastReadingDays ?? '', x.systolic, x.diastolic, x.pulse,
+              x.complianceDays, x.rpmMinutes, x.ccmMinutes, daysLeftInMonth,
+              (p.createdAt || '').slice(0, 10), p.provider || '', p.dischargeDate || '',
+              p.insurance || '', p.zipCode || '', x.dxCodes.join(' '), p.status || 'active'];
+          }))}
       >
         <Button onClick={() => setShowAdd(true)} className="gap-2"><Plus className="w-4 h-4" /> Add Patient</Button>
       </TabToolbar>
@@ -83,33 +187,65 @@ function PatientsTab() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead><TableHead>DOB</TableHead><TableHead>MRN</TableHead>
-              <TableHead>Provider</TableHead><TableHead>Location</TableHead><TableHead>Status</TableHead>
+              <TableHead className="whitespace-nowrap">Name</TableHead>
+              <TableHead className="whitespace-nowrap" title="Days since the most recent reading">Last Reading</TableHead>
+              <TableHead>Systolic</TableHead><TableHead>Diastolic</TableHead><TableHead>Pulse</TableHead>
+              <TableHead className="whitespace-nowrap" title="Distinct days with readings this month">Compliance</TableHead>
+              <TableHead className="whitespace-nowrap">RPM Min</TableHead>
+              <TableHead className="whitespace-nowrap">CCM Min</TableHead>
+              <TableHead className="whitespace-nowrap" title="Days remaining in this billing month">Days Left</TableHead>
+              <TableHead className="whitespace-nowrap">Setup Date</TableHead>
+              <TableHead>PCP</TableHead>
+              <TableHead className="whitespace-nowrap">Discharge</TableHead>
+              <TableHead>Insurance</TableHead>
+              <TableHead>Zip</TableHead>
+              <TableHead className="whitespace-nowrap">Dx Codes</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className="w-10" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.map(p => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.lastName}, {p.firstName}</TableCell>
-                <TableCell>{p.dob}</TableCell>
-                <TableCell>{p.mrn}</TableCell>
-                <TableCell>{p.provider || '—'}</TableCell>
-                <TableCell>{p.location || '—'}</TableCell>
-                <TableCell>
-                  {p.status === 'inactive'
-                    ? <Badge variant="outline" className="border-dashed text-muted-foreground">Inactive</Badge>
-                    : <Badge variant="secondary" className="text-emerald-700">Active</Badge>}
-                </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(p)}>
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {filtered.map(p => {
+              const x = extras.get(p.id) || blankX;
+              return (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    {p.lastName}, {p.firstName}
+                    <span className="block text-xs text-muted-foreground font-normal">{p.dob} · {p.mrn}</span>
+                  </TableCell>
+                  <TableCell className={x.lastReadingDays !== null && x.lastReadingDays <= 2 ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''}>
+                    {x.lastReadingDays !== null ? x.lastReadingDays : '—'}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{x.systolic || '—'}</TableCell>
+                  <TableCell className="tabular-nums">{x.diastolic || '—'}</TableCell>
+                  <TableCell className="tabular-nums">{x.pulse || '—'}</TableCell>
+                  <TableCell className="tabular-nums">{x.complianceDays}</TableCell>
+                  <TableCell className="tabular-nums">{x.rpmMinutes}</TableCell>
+                  <TableCell className="tabular-nums">{x.ccmMinutes}</TableCell>
+                  <TableCell className="tabular-nums">{daysLeftInMonth}</TableCell>
+                  <TableCell className="whitespace-nowrap">{(p.createdAt || '').slice(0, 10) || '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap">{p.provider || '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap">{p.dischargeDate || '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap">{p.insurance || 'Unknown'}</TableCell>
+                  <TableCell>{p.zipCode || '—'}</TableCell>
+                  <TableCell className="max-w-[180px]">
+                    <span className="font-mono text-xs">{x.dxCodes.join(', ') || '—'}</span>
+                  </TableCell>
+                  <TableCell>
+                    {p.status === 'inactive'
+                      ? <Badge variant="outline" className="border-dashed text-muted-foreground">Inactive</Badge>
+                      : <Badge variant="secondary" className="text-emerald-700">Active</Badge>}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditing(p)}>
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No patients found.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={17} className="text-center text-muted-foreground py-8">No patients found.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>

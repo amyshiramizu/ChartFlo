@@ -365,6 +365,9 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
         location: p.location || undefined,
         // Tolerate databases where the status migration hasn't run yet
         status: p.status === 'inactive' ? 'inactive' : 'active',
+        insurance: p.insurance || undefined,
+        zipCode: p.zip_code || undefined,
+        dischargeDate: p.discharge_date || undefined,
         medications: (medsByPatient.get(p.id) || []).map((m: any) => ({
           id: m.id,
           name: m.name,
@@ -502,6 +505,9 @@ export const usePatientStore = create<PatientStore>()((set, get) => ({
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     if (updates.provider !== undefined) dbUpdates.provider = updates.provider;
     if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.insurance !== undefined) dbUpdates.insurance = updates.insurance;
+    if (updates.zipCode !== undefined) dbUpdates.zip_code = updates.zipCode;
+    if (updates.dischargeDate !== undefined) dbUpdates.discharge_date = updates.dischargeDate || null;
 
     if (Object.keys(dbUpdates).length > 0) {
       const { error } = await supabase.from('patients').update(dbUpdates).eq('id', id);
