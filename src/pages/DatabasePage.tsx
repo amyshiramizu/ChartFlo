@@ -292,7 +292,7 @@ function ProvidersTab() {
 
 interface RpmDevice {
   id: string; patient_id: string; device_type: string; model: string | null;
-  serial_number: string | null; status: string; assigned_date: string;
+  serial_number: string | null; imei?: string | null; status: string; assigned_date: string;
 }
 
 const DEVICE_TYPES = [
@@ -305,7 +305,7 @@ function DevicesTab() {
   const [devices, setDevices] = useState<RpmDevice[]>([]);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ patient_id: '', device_type: DEVICE_TYPES[0], model: '', serial: '' });
+  const [form, setForm] = useState({ patient_id: '', device_type: DEVICE_TYPES[0], model: '', serial: '', imei: '' });
 
   const patientName = useCallback((id: string) => {
     const p = patients.find(x => x.id === id);
@@ -322,14 +322,25 @@ function DevicesTab() {
 
   async function addDevice() {
     if (!form.patient_id) { toast.error('Select a patient'); return; }
+    const imei = form.imei.replace(/\D/g, '');
+    if (form.imei && (imei.length < 14 || imei.length > 16)) {
+      toast.error('IMEI should be 14–16 digits');
+      return;
+    }
     const { error } = await supabase.from('rpm_devices').insert({
       patient_id: form.patient_id, device_type: form.device_type,
       model: form.model || null, serial_number: form.serial || null,
-    });
-    if (error) { toast.error(`Add failed: ${error.message}`); return; }
+      ...(imei ? { imei } : {}),
+    } as any);
+    if (error) {
+      toast.error(error.message.includes('duplicate') || error.message.includes('unique')
+        ? `IMEI ${imei} is already registered to another device`
+        : `Add failed: ${error.message}${error.message.includes('imei') ? '. Run the latest database migration in Supabase.' : ''}`);
+      return;
+    }
     toast.success('Device assigned');
     setDialogOpen(false);
-    setForm({ patient_id: '', device_type: DEVICE_TYPES[0], model: '', serial: '' });
+    setForm({ patient_id: '', device_type: DEVICE_TYPES[0], model: '', serial: '', imei: '' });
     fetchDevices();
   }
 
@@ -348,7 +359,7 @@ function DevicesTab() {
   }
 
   const filtered = devices.filter(d =>
-    `${d.device_type} ${d.model || ''} ${d.serial_number || ''} ${patientName(d.patient_id)}`
+    `${d.device_type} ${d.model || ''} ${d.serial_number || ''} ${d.imei || ''} ${patientName(d.patient_id)}`
       .toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -358,8 +369,8 @@ function DevicesTab() {
         search={search}
         setSearch={setSearch}
         onExport={() => exportCsv('devices.csv',
-          ['Device', 'Model', 'Serial', 'Patient', 'Status', 'Assigned'],
-          filtered.map(d => [d.device_type, d.model || '', d.serial_number || '', patientName(d.patient_id), d.status, d.assigned_date]))}
+          ['Device', 'Model', 'Serial', 'IMEI', 'Patient', 'Status', 'Assigned'],
+          filtered.map(d => [d.device_type, d.model || '', d.serial_number || '', d.imei || '', patientName(d.patient_id), d.status, d.assigned_date]))}
       >
         <Button onClick={() => setDialogOpen(true)} className="gap-2"><Plus className="w-4 h-4" /> Assign Device</Button>
       </TabToolbar>
@@ -368,6 +379,7 @@ function DevicesTab() {
           <TableHeader>
             <TableRow>
               <TableHead>Device</TableHead><TableHead>Model</TableHead><TableHead>Serial #</TableHead>
+              <TableHead>IMEI</TableHead>
               <TableHead>Patient</TableHead><TableHead>Assigned</TableHead><TableHead>Status</TableHead>
               <TableHead className="w-20" />
             </TableRow>
@@ -378,6 +390,7 @@ function DevicesTab() {
                 <TableCell className="font-medium">{d.device_type}</TableCell>
                 <TableCell>{d.model || '—'}</TableCell>
                 <TableCell>{d.serial_number || '—'}</TableCell>
+                <TableCell className="font-mono text-xs">{d.imei || '—'}</TableCell>
                 <TableCell>{patientName(d.patient_id)}</TableCell>
                 <TableCell>{d.assigned_date}</TableCell>
                 <TableCell>
@@ -395,7 +408,7 @@ function DevicesTab() {
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">No devices assigned yet.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">No devices assigned yet.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -427,6 +440,16 @@ function DevicesTab() {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Model</Label><Input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} placeholder="Omron BP786N" /></div>
               <div><Label>Serial #</Label><Input value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} /></div>
+            </div>
+            <div>
+              <Label>IMEI <span className="text-muted-foreground font-normal">(cellular devices — links readings to this patient)</span></Label>
+              <Input
+                value={form.imei}
+                onChange={e => setForm({ ...form, imei: e.target.value })}
+                placeholder="356938035643809"
+                className="font-mono"
+                inputMode="numeric"
+              />
             </div>
             <Button onClick={addDevice} className="w-full">Assign Device</Button>
           </div>
