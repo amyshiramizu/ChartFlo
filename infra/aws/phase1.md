@@ -86,7 +86,16 @@ aws cognito-idp create-user-pool-client \
       login -> session -> RLS-scoped data query -> 200; anon -> 401
 - [x] Frontend backend flag: VITE_BACKEND=aws switches supabase-js to the
       gateway (src/integrations/supabase/client.ts); default stays Supabase
-- [ ] /functions/v1/* routes: port the 25 edge functions to Lambda (phase 4)
+- [x] Bedrock verified in-account (Claude Haiku 4.5 / Sonnet 4.6) — AI
+      functions run in AWS, PHI never leaves the account
+- [x] /functions/v1/{name} route LIVE behind a Cognito JWT authorizer ->
+      chartflo-functions router Lambda (source: infra/aws/functions/)
+- [x] First port verified end to end: structure-soap (prompt preserved
+      verbatim, Bedrock tool-choice replaces the Lovable gateway) returned
+      a structured SOAP note with ICD-10 codes through the gateway
+- [ ] Port remaining 24 functions into the router (mechanical from here);
+      transcribe-audio maps to Amazon Transcribe; pf-* need Practice
+      Fusion re-auth (secrets are Lovable-managed and not exportable)
 - [ ] Storage (clinic logos) to S3
 - [ ] Password-reset emails to all users at cutover
 
