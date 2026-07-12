@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Save, Lock, Upload, ImageOff, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { uploadLogoFile } from '@/lib/logoStorage';
 import { BrandingPreview } from '@/components/BrandingPreview';
 import { resolveClinicLogoUrl } from '@/lib/clinicLogoUrl';
 
@@ -137,12 +138,10 @@ export function ClinicSettingsForm() {
     setUploading(true);
     const ext = (file.name.split('.').pop() || 'png').toLowerCase();
     const path = `${activeClinic.id}/logo-${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from('clinic-logos')
-      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+    const { error: upErr } = await uploadLogoFile(path, file);
     if (upErr) {
       setUploading(false);
-      return toast.error(upErr.message);
+      return toast.error(upErr);
     }
     // Store path only — bucket is private, signed URLs are generated at render time.
     update({ logo_url: path });
@@ -165,12 +164,10 @@ export function ClinicSettingsForm() {
     setUploadingFavicon(true);
     const ext = (file.name.split('.').pop() || 'png').toLowerCase();
     const path = `${activeClinic.id}/favicon-${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage
-      .from('clinic-logos')
-      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type || undefined });
+    const { error: upErr } = await uploadLogoFile(path, file);
     if (upErr) {
       setUploadingFavicon(false);
-      return toast.error(upErr.message);
+      return toast.error(upErr);
     }
     update({ favicon_url: path });
 

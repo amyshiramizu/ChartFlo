@@ -122,7 +122,9 @@ aws cognito-idp create-user-pool-client \
       removed from UI), pf-oauth-token + pf-fhir-import (Practice Fusion
       re-auth at cutover), ingest-reading (device vendors will point at a
       dedicated endpoint at cutover)
-- [ ] Storage (clinic logos) to S3
+- [x] Storage (clinic logos) to S3: logo-storage function (upload +
+      presigned URLs, verified live) with a frontend adapter
+      (src/lib/logoStorage.ts) that keeps the Supabase path by default
 - [ ] Password-reset emails to all users at cutover
 
 ## Cost note

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { signLogoUrl } from '@/lib/logoStorage';
 
 const BUCKET = 'clinic-logos';
 const SIGNED_EXPIRY_SECONDS = 60 * 60 * 24 * 7; // 7 days
@@ -46,9 +46,5 @@ export async function resolveClinicLogoUrl(
   if (isExternalLogoUrl(v)) return v;
   const path = extractClinicLogoPath(v);
   if (!path) return null;
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(path, SIGNED_EXPIRY_SECONDS);
-  if (error || !data) return null;
-  return data.signedUrl;
+  return signLogoUrl(path, SIGNED_EXPIRY_SECONDS);
 }

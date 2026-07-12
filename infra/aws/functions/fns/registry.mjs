@@ -17,6 +17,7 @@ import ccmLogAssist from "./ccm-log-assist.mjs";
 import ccmBatchParse from "./ccm-batch-parse.mjs";
 import codeLookup from "./code-lookup.mjs";
 import transcribeAudio from "./transcribe-audio.mjs";
+import logoStorage from "./logo-storage.mjs";
 import computeMonthlySuperbill from "./compute-monthly-superbill.mjs";
 import resolveActivePatient from "./resolve-active-patient.mjs";
 import exportFhir from "./export-fhir.mjs";
@@ -25,6 +26,7 @@ import inviteClinicMember from "./invite-clinic-member.mjs";
 import resendClinicInvite from "./resend-clinic-invite.mjs";
 
 export const PORTED = {
+  "logo-storage": logoStorage,
   "transcribe-audio": transcribeAudio,
   "suggest-icd": suggestIcd,
   "suggest-cpt": suggestCpt,
