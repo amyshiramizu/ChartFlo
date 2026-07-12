@@ -45,13 +45,18 @@ aws cognito-idp create-user-pool-client \
   --explicit-auth-flows ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_REFRESH_TOKEN_AUTH
 ```
 
-## Next (Phase 2)
+## Phase 2 progress
 
-1. `auth` schema shim on Aurora (`auth.uid()` reading the request JWT claim,
-   PostgREST-style) so the existing RLS policies port unchanged
-2. Apply all `supabase/migrations/*.sql` via the Data API
-3. Export data from Supabase (needs `SUPABASE_DB_PASSWORD`) and import
-4. Row-count checksums per table
+- [x] `auth` schema shim applied (`auth.uid()`, roles, auth.users mirror,
+      storage stub) — `infra/aws/schema/000_auth_shim.sql`
+- [x] All 45 migration files applied via Data API: 238/248 statements OK.
+      The 10 failures are expected Supabase-isms (storage bucket/logo
+      policies → replaced by S3 in a later phase; `GRANT ... TO service_role`
+      → role is Supabase-internal)
+- [x] Verified: 27 application tables, 58 RLS policies on Aurora
+- [ ] Export data from Supabase (needs `SUPABASE_DB_PASSWORD` in the
+      environment) and import via Data API
+- [ ] Row-count checksums per table
 
 ## Cost note
 
