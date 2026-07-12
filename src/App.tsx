@@ -21,6 +21,7 @@ import CodeLookupPage from "./pages/CodeLookupPage.tsx";
 import BillingPage from "./pages/BillingPage.tsx";
 import QualityPage from "./pages/QualityPage.tsx";
 import DatabasePage from "./pages/DatabasePage.tsx";
+import MonthSignOffPage from "./pages/MonthSignOffPage.tsx";
 import PFExtensionTestPage from "./pages/PFExtensionTestPage.tsx";
 
 
@@ -78,6 +79,7 @@ const AppRoutes = () => {
       <Route path="/billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
       <Route path="/quality" element={<ProtectedRoute><QualityPage /></ProtectedRoute>} />
       <Route path="/database" element={<ProtectedRoute><DatabasePage /></ProtectedRoute>} />
+      <Route path="/signoff" element={<ProtectedRoute><MonthSignOffPage /></ProtectedRoute>} />
       <Route path="/pf-test" element={<ProtectedRoute><PFExtensionTestPage /></ProtectedRoute>} />
       <Route path="/pf-callback" element={<PFCallbackPage />} />
       <Route path="*" element={<NotFound />} />

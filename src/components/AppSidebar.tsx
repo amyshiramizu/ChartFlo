@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, Users, ClipboardList, Settings, Mic, Send, Menu, X, LogOut, HeartPulse, Activity, CalendarDays, Stethoscope, BookOpen, DollarSign, BarChart3, Database } from 'lucide-react';
+import { FileText, Users, ClipboardList, Settings, Mic, Send, Menu, X, LogOut, HeartPulse, Activity, CalendarDays, Stethoscope, BookOpen, DollarSign, BarChart3, Database, ClipboardCheck } from 'lucide-react';
 import { ClinicSwitcher } from '@/components/ClinicSwitcher';
 import { ClinicManageDialog } from '@/components/ClinicManageDialog';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ const navItems = [
   { path: '/codes', label: 'Code Lookup', icon: BookOpen },
   { path: '/billing', label: 'Billing', icon: DollarSign },
   { path: '/quality', label: 'Quality', icon: BarChart3 },
+  { path: '/signoff', label: 'Month Sign Off', icon: ClipboardCheck },
   { path: '/database', label: 'Database', icon: Database },
 ];
 
