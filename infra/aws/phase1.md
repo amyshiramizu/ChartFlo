@@ -78,8 +78,16 @@ aws cognito-idp create-user-pool-client \
 - [x] End-to-end verified: anon request -> 401; Cognito ID token -> 200
       with RLS-scoped rows; Amy's legacy id resolves all 516 patients
       under the policy expression
-- [ ] GoTrue-compatible auth endpoints (token/user/logout/recover) so the
-      frontend's supabase-js keeps working with only a URL/key change
+- [x] GoTrue-compatible auth shim LIVE (chartflo-auth Lambda): password +
+      refresh-token grants, /user, /logout, /recover; sessions carry the
+      legacy user id so all app code keeps working
+- [x] Unified gateway LIVE: https://z7e0ilsrfa.execute-api.us-east-2.amazonaws.com
+      routes /auth/v1/* to the shim and /rest/v1/* to PostgREST. Verified:
+      login -> session -> RLS-scoped data query -> 200; anon -> 401
+- [x] Frontend backend flag: VITE_BACKEND=aws switches supabase-js to the
+      gateway (src/integrations/supabase/client.ts); default stays Supabase
+- [ ] /functions/v1/* routes: port the 25 edge functions to Lambda (phase 4)
+- [ ] Storage (clinic logos) to S3
 - [ ] Password-reset emails to all users at cutover
 
 ## Cost note
