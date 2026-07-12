@@ -109,13 +109,19 @@ aws cognito-idp create-user-pool-client \
       Polly-generated speech: "one fifty over ninety five" -> "150/95",
       "ten milligrams" -> "10 mg". Long recordings return a pending job
       the frontend now polls (AmbientDictation.invokeTranscribe).
-- [ ] Remaining ports:
-      compute-monthly-superbill / resolve-active-patient / export-fhir /
-      clinic-member-statuses / invite + resend-clinic-invite (Data API +
-      Cognito), dispatch-* (feature removed from UI — may retire),
-      pf-oauth-token / pf-fhir-import (need Practice Fusion re-auth;
-      secrets are Lovable-managed and not exportable), generate-avs and
-      suggest-icd DB side-writes
+- [x] DB/team batch ported and verified live: compute-monthly-superbill
+      (empty-scoped result for a no-access user), clinic-member-statuses
+      (validation + Cognito-backed statuses), export-fhir (valid Bundle),
+      resolve-active-patient, invite-clinic-member (Cognito invite email +
+      profiles/clinic_members inserts), resend-clinic-invite (invite resend
+      or password-reset email via new cognito.resetPassword helper);
+      generate-avs and suggest-icd DB side-writes completed
+- [x] Bedrock unlocked after the use-case form — previously gated AI
+      functions verified live (suggest-icd coded output, family summary)
+- [ ] Deliberately unported (router 501s them): dispatch-sync (feature
+      removed from UI), pf-oauth-token + pf-fhir-import (Practice Fusion
+      re-auth at cutover), ingest-reading (device vendors will point at a
+      dedicated endpoint at cutover)
 - [ ] Storage (clinic logos) to S3
 - [ ] Password-reset emails to all users at cutover
 

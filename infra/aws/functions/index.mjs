@@ -4,7 +4,7 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import { RDSDataClient, ExecuteStatementCommand } from '@aws-sdk/client-rds-data';
 import {
-  CognitoIdentityProviderClient, AdminCreateUserCommand, AdminGetUserCommand,
+  CognitoIdentityProviderClient, AdminCreateUserCommand, AdminGetUserCommand, AdminResetUserPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { randomUUID } from 'node:crypto';
 
@@ -62,6 +62,10 @@ const cognito = {
       const attrs = Object.fromEntries((r.UserAttributes || []).map(a => [a.Name, a.Value]));
       return { status: r.UserStatus, legacyId: attrs['custom:legacy_id'], email: attrs.email, name: attrs.name };
     } catch { return null; }
+  },
+  /** Send a password-reset email (for re-inviting already-confirmed users). */
+  async resetPassword(email) {
+    await cognitoClient.send(new AdminResetUserPasswordCommand({ UserPoolId: USER_POOL_ID, Username: email }));
   },
   async resendInvite(email) {
     await cognitoClient.send(new AdminCreateUserCommand({

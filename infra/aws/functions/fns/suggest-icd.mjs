@@ -1,8 +1,11 @@
 // Port of supabase/functions/suggest-icd — prompt preserved verbatim.
-// NOTE: the original also inserted a best-effort audit row per program decision
-// into eligibility_decision_logs via the Supabase service client (failures were
-// swallowed and never affected the response). That DB portion is NOT ported —
-// pending the Data API wiring.
+// Also ports the original's best-effort audit insert (one row per program
+// eligibility decision) into eligibility_decision_logs via ctx.sql; failures
+// are swallowed and never affect the response, exactly like the original.
+
+// Model actually used for the decision — keep in sync with MODELS.fast in
+// index.mjs (the original recorded its gateway model, "google/gemini-2.5-flash").
+const AI_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0";
 
 const SYSTEM_PROMPT = `You are a medical coding and CMS care-management assistant. Given the contents of a clinical encounter note (SOAP), do TWO things:
 
@@ -35,7 +38,7 @@ For EACH program (always return one entry for CCM and one for RPM, even when not
    - qualifying_codes — ICD-10-CM codes drawn from the note/problem list that support eligibility,
    - care_plan_focus (1-2 sentences) — CMS-aligned care plan elements (problem list, measurable goals, interventions/medications, monitoring cadence and parameters, coordination/community resources, who is responsible).`;
 
-export default async function handler(body, ctx) {
+export default async function handler(body, ctx, event) {
   const { subjective = "", objective = "", assessment = "", plan = "", patient_id = null } = body;
   const visitText = [subjective, objective, assessment, plan].filter(Boolean).join("\n\n");
 
@@ -105,11 +108,39 @@ export default async function handler(body, ctx) {
     model: "fast",
   });
 
-  // TODO(Data API): original inserted one eligibility_decision_logs row per
-  // entry in result.programs (user_id, patient_id, program, eligible,
-  // confidence, rationale, qualifying_icd_codes, cpt_hcpcs_rules,
-  // note_excerpts, care_plan_focus, ai_model, raw_response).
-  void patient_id;
+  // Structured audit log: one row per program eligibility decision (best-effort).
+  try {
+    const userId = event?.requestContext?.authorizer?.jwt?.claims?.["custom:legacy_id"] ?? null;
+    const programs = Array.isArray(result.programs) ? result.programs : [];
+    for (const p of programs) {
+      await ctx.sql(
+        `insert into eligibility_decision_logs
+           (user_id, patient_id, program, eligible, confidence, rationale,
+            qualifying_icd_codes, cpt_hcpcs_rules, note_excerpts, care_plan_focus,
+            ai_model, raw_response)
+         values
+           (:userId::uuid, :patientId::uuid, :program, :eligible, :confidence, :rationale,
+            :qualifyingCodes::jsonb, :cptRules::jsonb, :noteExcerpts::jsonb, :carePlanFocus,
+            :aiModel, :rawResponse::jsonb)`,
+        {
+          userId,
+          patientId: patient_id || null,
+          program: p.program,
+          eligible: !!p.eligible,
+          confidence: p.confidence ?? null,
+          rationale: p.rationale ?? null,
+          qualifyingCodes: p.qualifying_codes ?? [],
+          cptRules: p.cpt_hcpcs_rules ?? [],
+          noteExcerpts: p.note_excerpts ?? [],
+          carePlanFocus: p.care_plan_focus ?? null,
+          aiModel: AI_MODEL,
+          rawResponse: p,
+        },
+      );
+    }
+  } catch (logEx) {
+    console.error("eligibility log exception", logEx);
+  }
 
   return ctx.json(200, result);
 }
