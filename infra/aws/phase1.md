@@ -125,7 +125,14 @@ aws cognito-idp create-user-pool-client \
 - [x] Storage (clinic logos) to S3: logo-storage function (upload +
       presigned URLs, verified live) with a frontend adapter
       (src/lib/logoStorage.ts) that keeps the Supabase path by default
-- [ ] Password-reset emails to all users at cutover
+- [x] STAGING LIVE: https://staging-aws.d1xhg4bmarntbq.amplifyapp.com —
+      the full app built with VITE_BACKEND=aws (Cognito + Aurora + Bedrock
+      + Transcribe + S3), deployed from the migration branch alongside the
+      untouched Supabase production on main
+- [ ] User acceptance test on staging, then: fresh data re-sync, flip
+      VITE_BACKEND=aws on main, password-setup emails to all 4 users,
+      Practice Fusion re-auth, point device vendors at the AWS readings
+      endpoint, rotate the shared IAM key, delete migration Lambdas
 
 ## Cost note
 
