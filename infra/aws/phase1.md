@@ -70,8 +70,14 @@ aws cognito-idp create-user-pool-client \
 - [x] `auth.uid()` on Aurora now resolves Cognito JWTs: prefers the
       `custom:legacy_id` claim (the Supabase-era UUID that keys all data),
       falls back to `sub`
-- [ ] Data-plane API: PostgREST on App Runner against Aurora (authenticator
-      role, grants, VPC connector, Cognito JWKS validation)
+- [x] Data-plane API LIVE: PostgREST v12 on App Runner at
+      https://47xzccwrhz.us-east-2.awsapprunner.com — authenticator role
+      with least-privilege grants, VPC connector (sg chartflo-app ->
+      chartflo-db :5432 only), Cognito JWKS validation, role claim stamped
+      by the chartflo-pretoken Lambda
+- [x] End-to-end verified: anon request -> 401; Cognito ID token -> 200
+      with RLS-scoped rows; Amy's legacy id resolves all 516 patients
+      under the policy expression
 - [ ] GoTrue-compatible auth endpoints (token/user/logout/recover) so the
       frontend's supabase-js keeps working with only a URL/key change
 - [ ] Password-reset emails to all users at cutover
