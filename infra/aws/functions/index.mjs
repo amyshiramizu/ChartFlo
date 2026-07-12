@@ -2,8 +2,73 @@
 // Routed at /functions/v1/{name} behind a Cognito JWT authorizer (the
 // gateway verifies tokens; handlers can trust event auth claims).
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import { RDSDataClient, ExecuteStatementCommand } from '@aws-sdk/client-rds-data';
+import {
+  CognitoIdentityProviderClient, AdminCreateUserCommand, AdminGetUserCommand,
+} from '@aws-sdk/client-cognito-identity-provider';
+import { randomUUID } from 'node:crypto';
 
 const bedrock = new BedrockRuntimeClient({ region: 'us-east-2' });
+const rds = new RDSDataClient({ region: 'us-east-2' });
+const cognitoClient = new CognitoIdentityProviderClient({ region: 'us-east-2' });
+const CLUSTER_ARN = 'arn:aws:rds:us-east-2:557485610536:cluster:chartflo';
+const SECRET_ARN = 'arn:aws:secretsmanager:us-east-2:557485610536:secret:rds!cluster-52cb2016-c3c0-4247-a32b-0ba3a7d24143-szaMiY';
+const USER_POOL_ID = 'us-east-2_okjZSsixr';
+
+/**
+ * Run SQL on Aurora via the Data API (as the master role — the service_role
+ * equivalent). Named params: sql('select * from t where id = :id', { id }).
+ * Returns rows as plain objects.
+ */
+async function sql(query, params = {}) {
+  const parameters = Object.entries(params).map(([name, v]) => {
+    if (v === null || v === undefined) return { name, value: { isNull: true } };
+    if (typeof v === 'boolean') return { name, value: { booleanValue: v } };
+    if (typeof v === 'number') {
+      return Number.isInteger(v) ? { name, value: { longValue: v } } : { name, value: { doubleValue: v } };
+    }
+    if (typeof v === 'object') return { name, value: { stringValue: JSON.stringify(v) }, typeHint: 'JSON' };
+    return { name, value: { stringValue: String(v) } };
+  });
+  const r = await rds.send(new ExecuteStatementCommand({
+    resourceArn: CLUSTER_ARN, secretArn: SECRET_ARN, database: 'chartflo',
+    sql: query, parameters, formatRecordsAs: 'JSON',
+  }));
+  return r.formattedRecords ? JSON.parse(r.formattedRecords) : [];
+}
+
+/** Minimal Cognito surface for team-management functions. */
+const cognito = {
+  /** Invite a new user: creates the Cognito account (email invite with temp
+   *  password) carrying a fresh legacy_id, and returns that id. */
+  async inviteUser(email, name) {
+    const legacyId = randomUUID();
+    await cognitoClient.send(new AdminCreateUserCommand({
+      UserPoolId: USER_POOL_ID,
+      Username: email,
+      UserAttributes: [
+        { Name: 'email', Value: email },
+        { Name: 'email_verified', Value: 'true' },
+        ...(name ? [{ Name: 'name', Value: name }] : []),
+        { Name: 'custom:legacy_id', Value: legacyId },
+      ],
+      DesiredDeliveryMediums: ['EMAIL'],
+    }));
+    return legacyId;
+  },
+  async getUser(email) {
+    try {
+      const r = await cognitoClient.send(new AdminGetUserCommand({ UserPoolId: USER_POOL_ID, Username: email }));
+      const attrs = Object.fromEntries((r.UserAttributes || []).map(a => [a.Name, a.Value]));
+      return { status: r.UserStatus, legacyId: attrs['custom:legacy_id'], email: attrs.email, name: attrs.name };
+    } catch { return null; }
+  },
+  async resendInvite(email) {
+    await cognitoClient.send(new AdminCreateUserCommand({
+      UserPoolId: USER_POOL_ID, Username: email, MessageAction: 'RESEND', DesiredDeliveryMediums: ['EMAIL'],
+    }));
+  },
+};
 const MODELS = {
   fast: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
   smart: 'us.anthropic.claude-sonnet-4-6',
@@ -93,7 +158,7 @@ import { PORTED } from './fns/registry.mjs';
 const ROUTES = {
   'structure-soap': structureSoap,
 };
-const CTX = { aiTool, aiText, json };
+const CTX = { aiTool, aiText, json, sql, cognito };
 
 export const handler = async (event) => {
   const method = event.requestContext?.http?.method || 'POST';
@@ -104,7 +169,7 @@ export const handler = async (event) => {
   if (!fn && !ported) return json(501, { error: `Function "${name}" not ported to AWS yet` });
   try {
     const body = event.body ? JSON.parse(event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString() : event.body) : {};
-    return fn ? await fn(body, event) : await ported(body, CTX);
+    return fn ? await fn(body, event) : await ported(body, CTX, event);
   } catch (e) {
     console.error(`${name} error:`, e);
     return json(500, { error: e.message || 'Unknown error' });
