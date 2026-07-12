@@ -12,6 +12,25 @@ import { usePatientStore } from '@/store/patientStore';
 import type { ClinicalNote, NoteTemplate } from '@/types/patient';
 
 
+/**
+ * Invoke transcribe-audio and poll while the backend reports a pending job.
+ * On Supabase the reply is immediate; on the AWS backend long recordings are
+ * transcribed asynchronously by Amazon Transcribe Medical and hand back a
+ * jobName to poll.
+ */
+async function invokeTranscribe(body: { audioBase64: string; mimeType: string }) {
+  let { data, error } = await supabase.functions.invoke('transcribe-audio', { body });
+  const deadline = Date.now() + 180_000;
+  while (!error && data?.pending && data?.jobName && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 3000));
+    ({ data, error } = await supabase.functions.invoke('transcribe-audio', {
+      body: { jobName: data.jobName },
+    }));
+  }
+  if (!error && data?.pending) error = new Error('Transcription timed out') as any;
+  return { data, error };
+}
+
 interface ExtractedScreening {
   assessment_type: string;
   score?: string;
@@ -336,9 +355,7 @@ export function AmbientDictation({ onApplyNote, lastNote, templateId, onTemplate
         };
         reader.readAsDataURL(blob);
       });
-      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: { audioBase64: base64, mimeType: blob.type || 'audio/webm' },
-      });
+      const { data, error } = await invokeTranscribe({ audioBase64: base64, mimeType: blob.type || 'audio/webm' });
       if (error || data?.error) return;
       const text: string = (data?.transcript || '').trim();
       if (!text) return;
@@ -619,9 +636,7 @@ export function AmbientDictation({ onApplyNote, lastNote, templateId, onTemplate
       });
 
       toast.message('Transcribing audio… this can take up to a minute for long visits.');
-      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
-        body: { audioBase64: base64, mimeType: file.type || 'audio/mpeg' },
-      });
+      const { data, error } = await invokeTranscribe({ audioBase64: base64, mimeType: file.type || 'audio/mpeg' });
       if (error) throw new Error(error.message || 'Transcription failed');
       if (data?.error) throw new Error(data.error);
       const transcript: string = (data?.transcript || '').trim();
