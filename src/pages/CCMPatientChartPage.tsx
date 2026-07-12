@@ -1301,7 +1301,7 @@ function PatientDevicesCard({ patientId }: { patientId: string }) {
           <div key={d.id} className="flex items-center justify-between py-2 border-b border-border/40">
             <div>
               <span className="font-medium">{d.device_type}</span>
-              <span className="text-muted-foreground text-sm ml-2">{d.model || ''} {d.serial_number ? `· SN ${d.serial_number}` : ''} · assigned {d.assigned_date}</span>
+              <span className="text-muted-foreground text-sm ml-2">{d.model || ''} {d.serial_number ? `· SN ${d.serial_number}` : ''} {d.imei ? `· IMEI ${d.imei}` : ''} · assigned {d.assigned_date}</span>
             </div>
             <button onClick={() => toggle(d)} title="Click to toggle active/returned">
               <Badge variant="outline" className={d.status === 'active' ? 'border-emerald-500/40 text-emerald-500 cursor-pointer' : 'cursor-pointer'}>

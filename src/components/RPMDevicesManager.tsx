@@ -17,6 +17,7 @@ interface RpmDevice {
   device_type: string;
   model: string | null;
   serial_number: string | null;
+  imei?: string | null;
   status: string;
   notes: string | null;
   assigned_date: string;
@@ -55,6 +56,7 @@ export function RPMDevicesManager() {
   const [deviceType, setDeviceType] = useState(DEVICE_TYPES[0]);
   const [model, setModel] = useState('');
   const [serial, setSerial] = useState('');
+  const [imei, setImei] = useState('');
 
   const fetchDevices = async () => {
     setLoading(true);
@@ -73,16 +75,26 @@ export function RPMDevicesManager() {
 
   const handleAdd = async () => {
     if (!patientId) return toast.error('Select a patient');
+    const cleanImei = imei.replace(/\D/g, '');
+    if (imei && (cleanImei.length < 14 || cleanImei.length > 16)) {
+      return toast.error('IMEI should be 14–16 digits');
+    }
     const { error } = await supabase.from('rpm_devices').insert({
       patient_id: patientId,
       device_type: deviceType,
       model: model || null,
       serial_number: serial || null,
-    });
-    if (error) return toast.error(error.message);
+      ...(cleanImei ? { imei: cleanImei } : {}),
+    } as any);
+    if (error) {
+      return toast.error(error.message.includes('duplicate') || error.message.includes('unique')
+        ? `IMEI ${cleanImei} is already registered to another device`
+        : error.message);
+    }
     toast.success('Device assigned');
     setModel('');
     setSerial('');
+    setImei('');
     fetchDevices();
   };
 
@@ -161,6 +173,10 @@ export function RPMDevicesManager() {
           <Label className="text-xs">Serial Number</Label>
           <Input value={serial} onChange={(e) => setSerial(e.target.value)} placeholder="Device serial" className="font-mono" />
         </div>
+        <div>
+          <Label className="text-xs">IMEI (links cellular readings to the patient)</Label>
+          <Input value={imei} onChange={(e) => setImei(e.target.value)} placeholder="356938035643809" className="font-mono" inputMode="numeric" />
+        </div>
         <div className="sm:col-span-2">
           <Button onClick={handleAdd} className="gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" /> Assign Device
@@ -188,7 +204,7 @@ export function RPMDevicesManager() {
                     <PatientNameLink patientId={d.patient_id} className="text-xs">
                       {patientName(d.patient_id)}
                     </PatientNameLink>
-                    {d.serial_number ? ` · SN: ${d.serial_number}` : ''} · Assigned {d.assigned_date}
+                    {d.serial_number ? ` · SN: ${d.serial_number}` : ''}{d.imei ? ` · IMEI: ${d.imei}` : ''} · Assigned {d.assigned_date}
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => toggleStatus(d)}>
