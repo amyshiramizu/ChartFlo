@@ -103,7 +103,13 @@ aws cognito-idp create-user-pool-client \
       console (Bedrock -> Model access) — the account gated Anthropic
       models after the first verified calls; all AI functions 500 with
       the form message until submitted (instant approval, one time)
-- [ ] Remaining ports: transcribe-audio (Amazon Transcribe),
+- [x] transcribe-audio ported to Amazon Transcribe Medical (PRIMARYCARE
+      conversation mode, Provider/Patient speaker mapping, dedicated
+      encrypted audio bucket with 1-day auto-delete). Verified live with
+      Polly-generated speech: "one fifty over ninety five" -> "150/95",
+      "ten milligrams" -> "10 mg". Long recordings return a pending job
+      the frontend now polls (AmbientDictation.invokeTranscribe).
+- [ ] Remaining ports:
       compute-monthly-superbill / resolve-active-patient / export-fhir /
       clinic-member-statuses / invite + resend-clinic-invite (Data API +
       Cognito), dispatch-* (feature removed from UI — may retire),

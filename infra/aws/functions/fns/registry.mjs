@@ -14,8 +14,10 @@ import groupPlanByDx from "./group-plan-by-dx.mjs";
 import ccmLogAssist from "./ccm-log-assist.mjs";
 import ccmBatchParse from "./ccm-batch-parse.mjs";
 import codeLookup from "./code-lookup.mjs";
+import transcribeAudio from "./transcribe-audio.mjs";
 
 export const PORTED = {
+  "transcribe-audio": transcribeAudio,
   "suggest-icd": suggestIcd,
   "suggest-cpt": suggestCpt,
   "suggest-mips": suggestMips,
