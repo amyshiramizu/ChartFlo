@@ -143,3 +143,28 @@ until traffic arrives; scales to 2 ACU (~$0.24/hr) under load.
 
 The IAM access key used for this work was shared in chat — rotate it
 (IAM → Users → amyfowers → Security credentials) once the migration completes.
+
+
+## CUTOVER — completed 2026-07-13
+
+- Fresh re-sync before the flip: 2,139 rows, all 27 tables MATCH
+- main built with VITE_BACKEND=aws; live bundle verified to contain the
+  AWS gateway and no Supabase URL (dead-code eliminated)
+- Password-setup emails sent to all 4 users; the auth shim completes
+  Cognito's first-login challenge automatically, so signing in with the
+  emailed temporary password just works (verified with a live test user)
+- Device readings endpoint (vendor webhook):
+  https://2ecavhdzxlr5rucbag57jbydxm0oofxk.lambda-url.us-east-2.on.aws/
+  (auth: x-ingest-secret header; secret held by the practice)
+- Supabase left untouched as the 30-day rollback (revert = set
+  VITE_BACKEND back on the main branch and redeploy)
+
+### Post-cutover actions (user)
+1. Rotate the IAM access key for amyfowers (was shared in chat)
+2. Change the old app password (it still works against the dormant
+   Supabase project, which retains a copy of the data)
+3. Re-connect Practice Fusion from Settings when needed (pf-* functions
+   return 501 until then)
+4. Give the device vendor the readings URL + secret
+5. After 30 days of clean operation: delete the chartflo-data-migrate
+   and chartflo-probe Lambdas and decommission the Supabase project
