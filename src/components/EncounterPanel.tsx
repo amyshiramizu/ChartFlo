@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
 import { Card } from '@/components/ui/card';
@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Lock, Plus, Trash2, X, FilePlus2, Mic, Square, Loader2 } from 'lucide-react';
-import { blobToBase64, invokeTranscribe } from '@/lib/transcribe';
+import { useMedicalDictation } from '@/hooks/useMedicalDictation';
 import { evaluateCriticalVitals, createCriticalAlerts } from '@/lib/criticalAlerts';
 import type { Patient } from '@/types/patient';
 
@@ -106,82 +106,23 @@ export default function EncounterPanel({ patient, problems }: {
   const [saving, setSaving] = useState(false);
   const [medDialogOpen, setMedDialogOpen] = useState(false);
   const [medForm, setMedForm] = useState({ name: '', dosage: '', frequency: '' });
-  // ── SOAP note recording — same pipeline as chart notes: record audio,
-  // then transcribe server-side with the medical speech model. The browser's
-  // built-in speech recognition drops or garbles medical terms.
-  const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isSupported = typeof window !== 'undefined'
-    && typeof (window as any).MediaRecorder !== 'undefined'
-    && !!navigator.mediaDevices?.getUserMedia;
+  // ── SOAP note dictation — same pipeline as chart notes: record audio and
+  // transcribe server-side with the medical speech model (the browser's
+  // built-in speech recognition drops or garbles medical terms). The hook
+  // keeps recording through screen lock / tab switches and transcribes in
+  // ~20s chunks, so text lands in the note as you speak.
+  const appendToNote = useCallback((text: string) => {
+    setForm(f => ({ ...f, soap_note: f.soap_note ? `${f.soap_note} ${text}` : text }));
+  }, []);
+  const { recording, pending, elapsed, isSupported, start: startDictation, stop: stopDictation } = useMedicalDictation(appendToNote);
+  const transcribing = !recording && pending > 0;
 
-  const stopTracks = () => {
-    try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* noop */ }
-    streamRef.current = null;
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-  };
-
-  useEffect(() => () => { try { recorderRef.current?.stop(); } catch { /* noop */ } stopTracks(); }, []);
-
-  const pickRecorderMime = () => {
-    const MR: any = (window as any).MediaRecorder;
-    if (!MR?.isTypeSupported) return '';
-    const candidates = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
-    for (const c of candidates) { if (MR.isTypeSupported(c)) return c; }
-    return '';
-  };
-
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 16000 },
-      });
-      streamRef.current = stream;
-      const mime = pickRecorderMime();
-      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-      const chunks: Blob[] = [];
-      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = async () => {
-        stopTracks();
-        setRecording(false);
-        const blob = new Blob(chunks, { type: mime || 'audio/webm' });
-        if (blob.size < 2000) { toast.error('Recording was too short — try again.'); return; }
-        setTranscribing(true);
-        try {
-          const base64 = await blobToBase64(blob);
-          const { data, error } = await invokeTranscribe({ audioBase64: base64, mimeType: blob.type || 'audio/webm' });
-          if (error || data?.error) throw new Error(error?.message || data?.error || 'Transcription failed');
-          const text = String(data?.transcript || '').trim();
-          if (!text) { toast.error('No speech detected in the recording.'); return; }
-          setForm(f => ({ ...f, soap_note: f.soap_note ? `${f.soap_note} ${text}` : text }));
-          toast.success('Dictation added to the SOAP note');
-        } catch (e: any) {
-          toast.error(`Transcription failed: ${e?.message || e}`);
-        } finally {
-          setTranscribing(false);
-        }
-      };
-      recorderRef.current = recorder;
-      recorder.start(1000);
-      setElapsed(0);
-      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
-      setRecording(true);
-    } catch (e) {
-      console.error('mic access failed', e);
-      stopTracks();
-      toast.error('Could not access the microphone. Check browser permissions.');
-    }
-  }
-
-  const handleDictate = () => {
+  const handleDictate = async () => {
     if (recording) {
-      try { recorderRef.current?.stop(); } catch { /* noop */ }
+      stopDictation();
     } else {
-      startRecording();
+      const ok = await startDictation();
+      if (!ok) toast.error('Could not access the microphone. Check browser permissions.');
     }
   };
 
@@ -542,12 +483,19 @@ export default function EncounterPanel({ patient, problems }: {
               </div>
               {recording && (
                 <Card className="p-3 border-destructive/30 bg-destructive/5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                    <span className="text-sm font-medium text-destructive">Recording — {fmtElapsed(elapsed)}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+                      <span className="text-sm font-medium text-destructive">Recording — {fmtElapsed(elapsed)}</span>
+                    </div>
+                    {pending > 0 && (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> transcribing…
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground mt-2">
-                    Speak naturally. When you stop, the audio is transcribed with the medical speech engine and added to the note.
+                    Speak naturally — the screen stays awake, and medical-grade text is added to the note every few seconds.
                   </p>
                 </Card>
               )}
@@ -555,7 +503,7 @@ export default function EncounterPanel({ patient, problems }: {
                 <Card className="p-3 border-border bg-muted/40">
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">Transcribing with the medical speech engine…</span>
+                    <span className="text-sm text-muted-foreground">Finishing transcription with the medical speech engine…</span>
                   </div>
                 </Card>
               )}
