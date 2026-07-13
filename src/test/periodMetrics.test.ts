@@ -7,20 +7,20 @@ import {
 const TODAY = new Date('2026-07-08T12:00:00');
 
 describe('buildPeriods', () => {
-  it('builds Sunday-start weeks around today', () => {
-    const [lastWeek, thisWeek, today, nextWeek] = buildPeriods(TODAY);
-    expect(lastWeek).toMatchObject({ start: '2026-06-28', end: '2026-07-04' });
-    expect(thisWeek).toMatchObject({ start: '2026-07-05', end: '2026-07-11' });
+  it('builds today, Sunday-start weeks, and the calendar month', () => {
+    const [today, thisWeek, lastWeek, thisMonth] = buildPeriods(TODAY);
     expect(today).toMatchObject({ start: '2026-07-08', end: '2026-07-08' });
-    expect(nextWeek).toMatchObject({ start: '2026-07-12', end: '2026-07-18' });
+    expect(thisWeek).toMatchObject({ start: '2026-07-05', end: '2026-07-11' });
+    expect(lastWeek).toMatchObject({ start: '2026-06-28', end: '2026-07-04' });
+    expect(thisMonth).toMatchObject({ start: '2026-07-01', end: '2026-07-31' });
   });
 });
 
 describe('metricsWindow', () => {
-  it('starts at the month start when last week begins mid-month', () => {
+  it('spans from the month start of last week through the calendar month end', () => {
     // Last week starts 2026-06-28, so the window must reach back to 2026-06-01
-    // for June month-to-date totals.
-    expect(metricsWindow(TODAY)).toEqual({ start: '2026-06-01', end: '2026-07-18' });
+    // for June month-to-date totals; the month period runs through 2026-07-31.
+    expect(metricsWindow(TODAY)).toEqual({ start: '2026-06-01', end: '2026-07-31' });
   });
 });
 
@@ -37,7 +37,7 @@ describe('computePeriodMetrics', () => {
     // not enrolled → ignored entirely
     { patient_id: 'ghost', date: '2026-07-08', minutes: 60 },
   ];
-  const [lastWeek, thisWeek, today, nextWeek] = buildPeriods(TODAY);
+  const [today, thisWeek, lastWeek, thisMonth] = buildPeriods(TODAY);
 
   it('computes today: mins, patients, periods, compliance, billable', () => {
     const m = computePeriodMetrics(entries, enrolled, today);
@@ -69,9 +69,13 @@ describe('computePeriodMetrics', () => {
     expect(m.periods).toBe(2); // 45 min → two 20-min blocks
   });
 
-  it('returns zeros for a future period with no entries', () => {
-    const m = computePeriodMetrics(entries, enrolled, nextWeek);
-    expect(m).toEqual({ minutes: 0, patients: 0, periods: 0, compliancePct: 0, billablePct: 0 });
+  it('computes the calendar month across all July entries', () => {
+    const m = computePeriodMetrics(entries, enrolled, thisMonth);
+    expect(m.minutes).toBe(30); // p1 25 + p2 5 (June entries excluded)
+    expect(m.patients).toBe(2);
+    expect(m.periods).toBe(1); // p1: 25 min → one 20-min block
+    expect(m.compliancePct).toBe(50); // 2 of 4
+    expect(m.billablePct).toBe(25); // p1 ≥ 20 min in July
   });
 
   it('handles an empty panel without dividing by zero', () => {

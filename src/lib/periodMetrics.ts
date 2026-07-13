@@ -7,7 +7,7 @@ export interface MetricEntry {
 }
 
 export interface PeriodDef {
-  key: 'lastWeek' | 'thisWeek' | 'today' | 'nextWeek';
+  key: 'today' | 'thisWeek' | 'lastWeek' | 'thisMonth';
   label: string;
   start: string; // yyyy-MM-dd inclusive
   end: string;   // yyyy-MM-dd inclusive
@@ -34,20 +34,20 @@ export function buildPeriods(today: Date): PeriodDef[] {
   const thisWeekEnd = endOfWeek(today, weekOpts);
   return [
     {
-      key: 'lastWeek', label: 'Last Week',
-      start: fmt(addWeeks(thisWeekStart, -1)), end: fmt(addDays(thisWeekStart, -1)),
+      key: 'today', label: 'Today',
+      start: fmt(today), end: fmt(today),
     },
     {
       key: 'thisWeek', label: 'This Week',
       start: fmt(thisWeekStart), end: fmt(thisWeekEnd),
     },
     {
-      key: 'today', label: 'Today',
-      start: fmt(today), end: fmt(today),
+      key: 'lastWeek', label: 'Last Week',
+      start: fmt(addWeeks(thisWeekStart, -1)), end: fmt(addDays(thisWeekStart, -1)),
     },
     {
-      key: 'nextWeek', label: 'Next Week',
-      start: fmt(addWeeks(thisWeekStart, 1)), end: fmt(addWeeks(thisWeekEnd, 1)),
+      key: 'thisMonth', label: 'This Month',
+      start: fmt(startOfMonth(today)), end: fmt(endOfMonth(today)),
     },
   ];
 }
@@ -58,12 +58,15 @@ export function buildPeriods(today: Date): PeriodDef[] {
  */
 export function metricsWindow(today: Date): { start: string; end: string } {
   const periods = buildPeriods(today);
-  const earliestPeriodStart = periods[0].start;
-  // Month-to-date needs the start of the month containing each period's end;
-  // the earliest such month is the month of last week's start.
+  const starts = periods.map(p => p.start);
+  const ends = periods.map(p => p.end);
+  const earliestPeriodStart = starts.reduce((a, b) => (a < b ? a : b));
+  const latestPeriodEnd = ends.reduce((a, b) => (a > b ? a : b));
+  // Month-to-date needs the start of the month containing each period's
+  // start; the earliest such month is the month of last week's start.
   const monthStart = fmt(startOfMonth(new Date(`${earliestPeriodStart}T00:00:00`)));
   const start = monthStart < earliestPeriodStart ? monthStart : earliestPeriodStart;
-  return { start, end: periods[periods.length - 1].end };
+  return { start, end: latestPeriodEnd };
 }
 
 /**
