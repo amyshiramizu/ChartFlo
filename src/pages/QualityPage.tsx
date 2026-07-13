@@ -151,7 +151,7 @@ export default function QualityPage() {
             <ul className="mt-3 divide-y">
               {selected.gaps.map(g => (
                 <li key={g.patientId}>
-                  <Link to={`/patient/${g.patientId}`} className="flex items-center justify-between py-2 hover:bg-accent/40 px-2 rounded text-sm">
+                  <Link to={`/ccm/patient/${g.patientId}`} className="flex items-center justify-between py-2 hover:bg-accent/40 px-2 rounded text-sm">
                     <span>{g.name}</span>
                     <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </Link>

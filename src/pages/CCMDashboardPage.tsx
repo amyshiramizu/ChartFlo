@@ -1039,7 +1039,7 @@ export default function CCMDashboardPage({ program = 'CCM' }: { program?: 'CCM' 
                           const needed = nextT ? nextT - p.totalMinutes : null;
                           return (
                             <tr key={p.patientId} className="border-b border-border/50 hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => { setTimerPatientId(p.patientId); setTimerActive(true); setTimerPaused(false); setTimerSeconds(0); toast.success(`Timer started for ${p.name}`); }}>
-                              <td className="px-3 py-2.5 font-medium text-foreground" onClick={(e) => { e.stopPropagation(); navigate(`/chart/${p.patientId}`); }}>
+                              <td className="px-3 py-2.5 font-medium text-foreground" onClick={(e) => { e.stopPropagation(); navigate(`/ccm/patient/${p.patientId}`); }}>
                                 <span className="hover:underline hover:text-primary cursor-pointer">{p.name}</span>
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground">{p.dob ? new Date(p.dob).toLocaleDateString() : '—'}</td>

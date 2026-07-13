@@ -66,7 +66,7 @@ export function PatientDashboard() {
   });
 
   const handleSelect = (id: string) => {
-    navigate(`/chart/${id}`);
+    navigate(`/ccm/patient/${id}`);
   };
 
   const handleToggleStatus = async (patient: Patient) => {
