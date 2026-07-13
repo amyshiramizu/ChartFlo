@@ -16,7 +16,7 @@ const STAT_DEFS = [
   { key: 'billablePct', label: 'Billable', title: 'Patients worked this period who have reached 20 billable minutes month-to-date, as a share of all patients', pct: true },
 ] as const;
 
-const CURRENT_PERIODS = new Set(['thisWeek', 'today']);
+const CURRENT_PERIODS = new Set(['today', 'thisWeek', 'thisMonth']);
 const PROGRAM_FILTERS = ['All', 'CCM', 'RPM'] as const;
 type ProgramFilter = (typeof PROGRAM_FILTERS)[number];
 const FILTER_STORAGE_KEY = 'period_metrics_program';
