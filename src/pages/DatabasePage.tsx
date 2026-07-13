@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { PageLayout } from '@/components/MobileLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
@@ -67,6 +68,7 @@ interface PatientGridExtras {
 }
 
 function PatientsTab() {
+  const navigate = useNavigate();
   const { patients, fetchPatients } = usePatientStore();
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -210,7 +212,9 @@ function PatientsTab() {
               return (
                 <TableRow key={p.id}>
                   <TableCell className="font-medium whitespace-nowrap">
-                    {p.lastName}, {p.firstName}
+                    <button className="hover:underline hover:text-primary text-left" onClick={() => navigate(`/ccm/patient/${p.id}`)}>
+                      {p.lastName}, {p.firstName}
+                    </button>
                     <span className="block text-xs text-muted-foreground font-normal">{p.dob} · {p.mrn}</span>
                   </TableCell>
                   <TableCell className={x.lastReadingDays !== null && x.lastReadingDays <= 2 ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''}>

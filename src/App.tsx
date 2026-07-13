@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,7 +9,6 @@ import Index from "./pages/Index.tsx";
 import NotesPage from "./pages/NotesPage.tsx";
 import OrdersPage from "./pages/OrdersPage.tsx";
 import SettingsPage from "./pages/SettingsPage.tsx";
-import PatientProfilePage from "./pages/PatientProfilePage.tsx";
 import AuthPage from "./pages/AuthPage.tsx";
 import PFCallbackPage from "./pages/PFCallbackPage.tsx";
 import CCMDashboardPage from "./pages/CCMDashboardPage.tsx";
@@ -48,6 +47,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// The tabbed CCM chart is the one patient chart; old profile links land there.
+function PatientChartRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/ccm/patient/${id}`} replace />;
+}
+
 const AppRoutes = () => {
   const { user, loading } = useAuth();
 
@@ -68,7 +73,7 @@ const AppRoutes = () => {
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
       <Route path="/clinic-settings" element={<Navigate to="/settings" replace />} />
       <Route path="/templates" element={<Navigate to="/settings" replace />} />
-      <Route path="/patient/:id" element={<ProtectedRoute><PatientProfilePage /></ProtectedRoute>} />
+      <Route path="/patient/:id" element={<ProtectedRoute><PatientChartRedirect /></ProtectedRoute>} />
       <Route path="/ccm" element={<ProtectedRoute><CCMDashboardPage /></ProtectedRoute>} />
       <Route path="/today" element={<ProtectedRoute><TodayPage /></ProtectedRoute>} />
       <Route path="/chart" element={<ProtectedRoute><ChartPage /></ProtectedRoute>} />
