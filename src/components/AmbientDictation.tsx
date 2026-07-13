@@ -9,27 +9,9 @@ import { Mic, MicOff, Wand2, RotateCcw, Copy, Loader2, FileText, Sparkles, Plus,
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
+import { invokeTranscribe } from '@/lib/transcribe';
 import type { ClinicalNote, NoteTemplate } from '@/types/patient';
 
-
-/**
- * Invoke transcribe-audio and poll while the backend reports a pending job.
- * On Supabase the reply is immediate; on the AWS backend long recordings are
- * transcribed asynchronously by Amazon Transcribe Medical and hand back a
- * jobName to poll.
- */
-async function invokeTranscribe(body: { audioBase64: string; mimeType: string }) {
-  let { data, error } = await supabase.functions.invoke('transcribe-audio', { body });
-  const deadline = Date.now() + 180_000;
-  while (!error && data?.pending && data?.jobName && Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, 3000));
-    ({ data, error } = await supabase.functions.invoke('transcribe-audio', {
-      body: { jobName: data.jobName },
-    }));
-  }
-  if (!error && data?.pending) error = new Error('Transcription timed out') as any;
-  return { data, error };
-}
 
 interface ExtractedScreening {
   assessment_type: string;

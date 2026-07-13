@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
 import { Card } from '@/components/ui/card';
@@ -11,8 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Lock, Plus, Trash2, X, FilePlus2, Mic, MicOff } from 'lucide-react';
-import { useDictation } from '@/hooks/useDictation';
+import { Lock, Plus, Trash2, X, FilePlus2, Mic, Square, Loader2 } from 'lucide-react';
+import { blobToBase64, invokeTranscribe } from '@/lib/transcribe';
 import { evaluateCriticalVitals, createCriticalAlerts } from '@/lib/criticalAlerts';
 import type { Patient } from '@/types/patient';
 
@@ -106,21 +106,86 @@ export default function EncounterPanel({ patient, problems }: {
   const [saving, setSaving] = useState(false);
   const [medDialogOpen, setMedDialogOpen] = useState(false);
   const [medForm, setMedForm] = useState({ name: '', dosage: '', frequency: '' });
-  const { isListening, transcript, startListening, stopListening, resetTranscript, isSupported } = useDictation();
+  // ── SOAP note recording — same pipeline as chart notes: record audio,
+  // then transcribe server-side with the medical speech model. The browser's
+  // built-in speech recognition drops or garbles medical terms.
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isSupported = typeof window !== 'undefined'
+    && typeof (window as any).MediaRecorder !== 'undefined'
+    && !!navigator.mediaDevices?.getUserMedia;
 
-  // Same behavior as chart notes (NoteEditor): toggle the mic, and on stop
-  // append the transcript to the SOAP note.
+  const stopTracks = () => {
+    try { streamRef.current?.getTracks().forEach(t => t.stop()); } catch { /* noop */ }
+    streamRef.current = null;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+  };
+
+  useEffect(() => () => { try { recorderRef.current?.stop(); } catch { /* noop */ } stopTracks(); }, []);
+
+  const pickRecorderMime = () => {
+    const MR: any = (window as any).MediaRecorder;
+    if (!MR?.isTypeSupported) return '';
+    const candidates = ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+    for (const c of candidates) { if (MR.isTypeSupported(c)) return c; }
+    return '';
+  };
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1, sampleRate: 16000 },
+      });
+      streamRef.current = stream;
+      const mime = pickRecorderMime();
+      const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stopTracks();
+        setRecording(false);
+        const blob = new Blob(chunks, { type: mime || 'audio/webm' });
+        if (blob.size < 2000) { toast.error('Recording was too short — try again.'); return; }
+        setTranscribing(true);
+        try {
+          const base64 = await blobToBase64(blob);
+          const { data, error } = await invokeTranscribe({ audioBase64: base64, mimeType: blob.type || 'audio/webm' });
+          if (error || data?.error) throw new Error(error?.message || data?.error || 'Transcription failed');
+          const text = String(data?.transcript || '').trim();
+          if (!text) { toast.error('No speech detected in the recording.'); return; }
+          setForm(f => ({ ...f, soap_note: f.soap_note ? `${f.soap_note} ${text}` : text }));
+          toast.success('Dictation added to the SOAP note');
+        } catch (e: any) {
+          toast.error(`Transcription failed: ${e?.message || e}`);
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      recorderRef.current = recorder;
+      recorder.start(1000);
+      setElapsed(0);
+      timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
+      setRecording(true);
+    } catch (e) {
+      console.error('mic access failed', e);
+      stopTracks();
+      toast.error('Could not access the microphone. Check browser permissions.');
+    }
+  }
+
   const handleDictate = () => {
-    if (isListening) {
-      stopListening();
-      if (transcript) {
-        setForm(f => ({ ...f, soap_note: f.soap_note ? `${f.soap_note} ${transcript}` : transcript }));
-        resetTranscript();
-      }
+    if (recording) {
+      try { recorderRef.current?.stop(); } catch { /* noop */ }
     } else {
-      startListening();
+      startRecording();
     }
   };
+
+  const fmtElapsed = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   const fetchEncounters = useCallback(async () => {
     const { data, error } = await supabase
@@ -462,22 +527,36 @@ export default function EncounterPanel({ patient, problems }: {
                   <Button
                     type="button"
                     size="sm"
-                    variant={isListening ? 'destructive' : 'secondary'}
+                    variant={recording ? 'destructive' : 'secondary'}
                     onClick={handleDictate}
+                    disabled={transcribing}
                     className="gap-2"
                   >
-                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-                    {isListening ? 'Stop Dictation' : 'Dictate SOAP Note'}
+                    {transcribing
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Transcribing…</>
+                      : recording
+                        ? <><Square className="w-4 h-4" /> Stop Recording ({fmtElapsed(elapsed)})</>
+                        : <><Mic className="w-4 h-4" /> Dictate SOAP Note</>}
                   </Button>
                 )}
               </div>
-              {isListening && (
+              {recording && (
                 <Card className="p-3 border-destructive/30 bg-destructive/5">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-                    <span className="text-sm font-medium text-destructive">Listening...</span>
+                    <span className="text-sm font-medium text-destructive">Recording — {fmtElapsed(elapsed)}</span>
                   </div>
-                  {transcript && <p className="text-sm text-muted-foreground mt-2 italic">{transcript}</p>}
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Speak naturally. When you stop, the audio is transcribed with the medical speech engine and added to the note.
+                  </p>
+                </Card>
+              )}
+              {transcribing && (
+                <Card className="p-3 border-border bg-muted/40">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Transcribing with the medical speech engine…</span>
+                  </div>
                 </Card>
               )}
               <Textarea rows={6} value={form.soap_note} onChange={e => setForm({ ...form, soap_note: e.target.value })} disabled={locked} placeholder="Subjective, Objective, Assessment, Plan…" />
