@@ -677,7 +677,9 @@ export function AmbientDictation({ onApplyNote, lastNote, templateId, onTemplate
     flushBuffer();
   }, [flushBuffer, stopMobileKeepAwake]);
 
-  // Pause: stop capturing audio but keep transcript, duration, and mic stream alive.
+  // Pause: stop capturing audio but keep the transcript and duration.
+  // The mic is fully released so the browser's recording indicator turns
+  // off; Resume re-acquires it.
   const handlePause = useCallback(() => {
     if (!isListeningRef.current) return;
     isListeningRef.current = false;
@@ -696,7 +698,16 @@ export function AmbientDictation({ onApplyNote, lastNote, templateId, onTemplate
     }
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (watchdogRef.current) { clearInterval(watchdogRef.current); watchdogRef.current = null; }
+    if (wakeLockRef.current) {
+      try { wakeLockRef.current.release(); } catch { /* noop */ }
+      wakeLockRef.current = null;
+    }
+    setIsScreenAwake(false);
     stopMobileKeepAwake();
+    if (micStreamRef.current) {
+      try { micStreamRef.current.getTracks().forEach(t => t.stop()); } catch { /* noop */ }
+      micStreamRef.current = null;
+    }
     setRawTranscript(accumulatedRef.current);
     flushBuffer();
   }, [flushBuffer, stopMobileKeepAwake]);
