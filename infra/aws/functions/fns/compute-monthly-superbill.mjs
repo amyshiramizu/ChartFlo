@@ -64,7 +64,8 @@ export default async function handler(body, ctx, event) {
     const inIds = "any(string_to_array(:ids, ',')::uuid[])";
     const [entries, problems, enrolls] = await Promise.all([
       ctx.sql(`select patient_id, program, minutes from ccm_time_entries where patient_id = ${inIds} and date >= :from::date and date < :to::date`, { ids, from, to }),
-      ctx.sql(`select patient_id, status from patient_problems where patient_id = ${inIds}`, { ids }),
+      // patient_problems has no status column — every row is an active problem
+      ctx.sql(`select patient_id from patient_problems where patient_id = ${inIds}`, { ids }),
       ctx.sql(`select patient_id, program, status from patient_enrollments where patient_id = ${inIds}`, { ids }),
     ]);
 
