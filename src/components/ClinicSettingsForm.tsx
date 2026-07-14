@@ -122,8 +122,21 @@ export function ClinicSettingsForm() {
         { clinic_id: activeClinic.id, ...settings },
         { onConflict: 'clinic_id' },
       );
+    // The brand name IS the clinic's name — rename the clinic itself so the
+    // sidebar switcher and everything else that shows clinics.name follows.
+    let renameErr: string | null = null;
+    const newName = settings.brand_name.trim();
+    if (!error && newName && newName !== activeClinic.name) {
+      const { error: rErr } = await supabase
+        .from('clinics')
+        .update({ name: newName })
+        .eq('id', activeClinic.id);
+      renameErr = rErr?.message || null;
+      if (!rErr) window.dispatchEvent(new Event('clinics:refresh'));
+    }
     setSaving(false);
     if (error) return toast.error(error.message);
+    if (renameErr) return toast.error(`Settings saved, but the clinic rename failed: ${renameErr}`);
     toast.success('Clinic settings saved');
   };
 
@@ -248,6 +261,9 @@ export function ClinicSettingsForm() {
                 onChange={(e) => update({ brand_name: e.target.value })}
                 placeholder="e.g., Home Medical Services"
               />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Renames the clinic everywhere — sidebar, orders, and faxes.
+              </p>
             </div>
             <div>
               <Label className="text-xs">Clinic Logo</Label>
