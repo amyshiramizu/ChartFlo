@@ -734,6 +734,8 @@ export type Database = {
       patient_vitals: {
         Row: {
           a1c: string | null
+          afib_detected: boolean | null
+          blood_glucose: string | null
           blood_pressure: string | null
           heart_rate: string | null
           height: string | null
@@ -742,10 +744,13 @@ export type Database = {
           patient_id: string
           recorded_at: string
           respiratory_rate: string | null
+          source: string | null
           weight: string | null
         }
         Insert: {
           a1c?: string | null
+          afib_detected?: boolean | null
+          blood_glucose?: string | null
           blood_pressure?: string | null
           heart_rate?: string | null
           height?: string | null
@@ -754,10 +759,13 @@ export type Database = {
           patient_id: string
           recorded_at?: string
           respiratory_rate?: string | null
+          source?: string | null
           weight?: string | null
         }
         Update: {
           a1c?: string | null
+          afib_detected?: boolean | null
+          blood_glucose?: string | null
           blood_pressure?: string | null
           heart_rate?: string | null
           height?: string | null
@@ -766,6 +774,7 @@ export type Database = {
           patient_id?: string
           recorded_at?: string
           respiratory_rate?: string | null
+          source?: string | null
           weight?: string | null
         }
         Relationships: []

@@ -159,6 +159,18 @@ The IAM access key used for this work was shared in chat — rotate it
 - Supabase left untouched as the 30-day rollback (revert = set
   VITE_BACKEND back on the main branch and redeploy)
 
+### Post-cutover fixes
+- 2026-07-14: CORS enabled on the API Gateway HTTP API (was missing —
+  browser preflight to /functions/v1/* got 401 from the JWT authorizer,
+  so all AI buttons failed with "Failed to send a request to the Edge
+  Function"). Gateway-level CORS config + an unauthenticated
+  `OPTIONS /functions/v1/{proxy+}` route (the router Lambda answers
+  OPTIONS with 204). Verified: preflight 204, suggest-icd 200 from a
+  browser origin.
+- 2026-07-14: ingest Lambda extended — blood_glucose + afib_detected +
+  source='device' columns, glucose critical thresholds (≤54 / ≥400
+  mg/dL). Round-trip verified with a temp patient/device, then cleaned.
+
 ### Post-cutover actions (user)
 1. Rotate the IAM access key for amyfowers (was shared in chat)
 2. Change the old app password (it still works against the dormant
