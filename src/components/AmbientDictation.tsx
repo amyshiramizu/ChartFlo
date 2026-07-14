@@ -1107,10 +1107,18 @@ export function AmbientDictation({ onApplyNote, lastNote, templateId, onTemplate
           </div>
           <div className="flex items-center gap-2">
             {!isListening && !isPaused ? (
-              <Button onClick={handleStart} className="gap-2" disabled={!effectiveTemplateId}>
-                <Mic className="w-4 h-4" />
-                Start Ambient
-              </Button>
+              <>
+                <Button onClick={handleStart} className="gap-2" disabled={!effectiveTemplateId}>
+                  <Mic className="w-4 h-4" />
+                  Start Visit
+                </Button>
+                {rawTranscript && (
+                  <Button onClick={autoStructure} variant="secondary" className="gap-2" disabled={isStructuring}>
+                    {isStructuring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+                    {isStructuring ? 'Transcribing…' : 'Transcribe'}
+                  </Button>
+                )}
+              </>
             ) : (
               <>
                 {isPaused ? (
@@ -1223,18 +1231,17 @@ export function AmbientDictation({ onApplyNote, lastNote, templateId, onTemplate
         <Button
           onClick={autoStructure}
           className="w-full gap-2"
-          variant="secondary"
           disabled={isStructuring}
         >
           {isStructuring ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              AI is structuring your note...
+              Transcribing — pulling the visit into your note...
             </>
           ) : (
             <>
               <Wand2 className="w-4 h-4" />
-              AI Auto-Structure into SOAP Note
+              Transcribe — pull the visit into the note
             </>
           )}
         </Button>

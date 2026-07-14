@@ -90,7 +90,8 @@ function ChartContent() {
   const [activeTab, setActiveTab] = useState('patient');
   const [quickNote, setQuickNote] = useState('');
   const [enrollments, setEnrollments] = useState<any[]>([]);
-  const [vitals, setVitals] = useState({ blood_pressure: '', heart_rate: '', weight: '', a1c: '', o2_saturation: '', height: '', respiratory_rate: '' });
+  const [vitals, setVitals] = useState({ blood_pressure: '', heart_rate: '', weight: '', a1c: '', o2_saturation: '', height: '', respiratory_rate: '', blood_glucose: '' });
+  const [readings, setReadings] = useState<any[]>([]);
   const [problems, setProblems] = useState<{ id: string; icd_code: string; description: string; program_tag: string }[]>([]);
   const [newProblem, setNewProblem] = useState({ icd_code: '', description: '' });
   const [assessments, setAssessments] = useState<any[]>([]);
@@ -114,14 +115,15 @@ function ChartContent() {
   async function loadAll(pid: string) {
     const [en, vt, pr, asm, cp, te] = await Promise.all([
       supabase.from('patient_enrollments').select('*').eq('patient_id', pid),
-      supabase.from('patient_vitals').select('*').eq('patient_id', pid).order('recorded_at', { ascending: false }).limit(1),
+      supabase.from('patient_vitals').select('*').eq('patient_id', pid).order('recorded_at', { ascending: false }).limit(60),
       supabase.from('patient_problems').select('*').eq('patient_id', pid).order('created_at'),
       supabase.from('patient_assessments').select('*').eq('patient_id', pid),
       supabase.from('patient_care_plans').select('*').eq('patient_id', pid).maybeSingle(),
       supabase.from('ccm_time_entries').select('*').eq('patient_id', pid).order('date', { ascending: false }),
     ]);
     setEnrollments(en.data || []);
-    if (vt.data?.[0]) setVitals({ blood_pressure: vt.data[0].blood_pressure || '', heart_rate: vt.data[0].heart_rate || '', weight: vt.data[0].weight || '', a1c: vt.data[0].a1c || '', o2_saturation: (vt.data[0] as any).o2_saturation || '', height: (vt.data[0] as any).height || '', respiratory_rate: (vt.data[0] as any).respiratory_rate || '' });
+    setReadings(vt.data || []);
+    if (vt.data?.[0]) setVitals({ blood_pressure: vt.data[0].blood_pressure || '', heart_rate: vt.data[0].heart_rate || '', weight: vt.data[0].weight || '', a1c: vt.data[0].a1c || '', o2_saturation: (vt.data[0] as any).o2_saturation || '', height: (vt.data[0] as any).height || '', respiratory_rate: (vt.data[0] as any).respiratory_rate || '', blood_glucose: (vt.data[0] as any).blood_glucose || '' });
     setProblems(pr.data || []);
     // ensure assessment rows exist
     const existing = asm.data || [];
@@ -346,9 +348,11 @@ function ChartContent() {
 
   async function saveVitals() {
     if (!id) return;
-    const { error } = await supabase.from('patient_vitals').insert({ patient_id: id, ...vitals });
+    const { error } = await supabase.from('patient_vitals').insert({ patient_id: id, ...vitals, source: 'manual' });
     if (error) return toast.error(error.message);
     toast.success('Vitals saved');
+    const { data } = await supabase.from('patient_vitals').select('*').eq('patient_id', id).order('recorded_at', { ascending: false }).limit(60);
+    setReadings(data || []);
     const findings = evaluateCriticalVitals({
       bp: vitals.blood_pressure,
       hr: vitals.heart_rate,
@@ -1013,8 +1017,67 @@ function ChartContent() {
         <TabsContent value="clinical" className="mt-6 space-y-4">
           <Card className="p-6">
             <div className="flex items-center gap-2 mb-4">
+              <Activity className="h-5 w-5 text-primary" />
+              <h3 className="text-sm font-semibold text-muted-foreground tracking-wider">READINGS ({readings.length})</h3>
+            </div>
+            {readings.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                No readings yet. Readings appear here automatically when the patient's cellular device transmits
+                (assign the device's IMEI on the Devices tab), or when vitals are entered below.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-sky-50 dark:bg-sky-950/30 text-left">
+                      <th className="py-2 px-3 font-semibold whitespace-nowrap">Date</th>
+                      <th className="py-2 px-3 font-semibold">Systolic</th>
+                      <th className="py-2 px-3 font-semibold">Diastolic</th>
+                      <th className="py-2 px-3 font-semibold">Pulse</th>
+                      <th className="py-2 px-3 font-semibold whitespace-nowrap">AFib</th>
+                      <th className="py-2 px-3 font-semibold whitespace-nowrap">O₂ Sat</th>
+                      <th className="py-2 px-3 font-semibold whitespace-nowrap">Blood Sugar</th>
+                      <th className="py-2 px-3 font-semibold">Weight</th>
+                      <th className="py-2 px-3 font-semibold">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {readings.map((r: any) => {
+                      const [sys, dia] = String(r.blood_pressure || '').split('/');
+                      return (
+                        <tr key={r.id} className="border-b border-border/40">
+                          <td className="py-2 px-3 whitespace-nowrap text-muted-foreground">
+                            {new Date(r.recorded_at).toLocaleString([], { month: 'numeric', day: 'numeric', year: '2-digit', hour: 'numeric', minute: '2-digit' })}
+                          </td>
+                          <td className="py-2 px-3 tabular-nums">{sys?.trim() || '—'}</td>
+                          <td className="py-2 px-3 tabular-nums">{dia?.trim() || '—'}</td>
+                          <td className="py-2 px-3 tabular-nums">{r.heart_rate || '—'}</td>
+                          <td className="py-2 px-3">
+                            {r.afib_detected === true
+                              ? <Badge variant="outline" className="border-red-500/50 text-red-600 dark:text-red-400">Yes</Badge>
+                              : r.afib_detected === false ? 'No' : '—'}
+                          </td>
+                          <td className="py-2 px-3 tabular-nums">{r.o2_saturation ? `${r.o2_saturation}%` : '—'}</td>
+                          <td className="py-2 px-3 tabular-nums">{r.blood_glucose ? `${r.blood_glucose} mg/dL` : '—'}</td>
+                          <td className="py-2 px-3 tabular-nums">{r.weight ? `${r.weight} lbs` : '—'}</td>
+                          <td className="py-2 px-3">
+                            {r.source === 'device'
+                              ? <Badge variant="secondary" className="text-xs gap-1"><Monitor className="w-3 h-3" /> Device</Badge>
+                              : <span className="text-xs text-muted-foreground">Manual</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center gap-2 mb-4">
               <HeartPulse className="h-5 w-5 text-primary" />
-              <h3 className="text-sm font-semibold text-muted-foreground tracking-wider">VITALS & LABS</h3>
+              <h3 className="text-sm font-semibold text-muted-foreground tracking-wider">VITALS & LABS — MANUAL ENTRY</h3>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><Label className="text-sm font-semibold mb-1.5 block">Blood Pressure</Label><Input placeholder="120/80" value={vitals.blood_pressure} onChange={e => setVitals({ ...vitals, blood_pressure: e.target.value })} /></div>
@@ -1022,6 +1085,7 @@ function ChartContent() {
               <div><Label className="text-sm font-semibold mb-1.5 block">Weight</Label><Input placeholder="lbs" value={vitals.weight} onChange={e => setVitals({ ...vitals, weight: e.target.value })} /></div>
               <div><Label className="text-sm font-semibold mb-1.5 block">A1C</Label><Input placeholder="%" value={vitals.a1c} onChange={e => setVitals({ ...vitals, a1c: e.target.value })} /></div>
               <div><Label className="text-sm font-semibold mb-1.5 block">O2 Saturation</Label><Input placeholder="%" value={vitals.o2_saturation} onChange={e => setVitals({ ...vitals, o2_saturation: e.target.value })} /></div>
+              <div><Label className="text-sm font-semibold mb-1.5 block">Blood Sugar</Label><Input placeholder="mg/dL" value={vitals.blood_glucose} onChange={e => setVitals({ ...vitals, blood_glucose: e.target.value })} /></div>
               <div><Label className="text-sm font-semibold mb-1.5 block">Height</Label><Input placeholder="in or cm" value={vitals.height} onChange={e => setVitals({ ...vitals, height: e.target.value })} /></div>
               <div><Label className="text-sm font-semibold mb-1.5 block">Respiratory Rate</Label><Input placeholder="breaths/min" value={vitals.respiratory_rate} onChange={e => setVitals({ ...vitals, respiratory_rate: e.target.value })} /></div>
             </div>
