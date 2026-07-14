@@ -16,6 +16,7 @@ import {
   RefreshCw, ClipboardList, Monitor, Clock, ChevronDown,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { usePatientStore } from '@/store/patientStore';
 import { toast } from 'sonner';
@@ -613,31 +614,41 @@ function ChartContent() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-none h-auto p-0 gap-6 flex-wrap">
+        {/* All tabs spread across the screen; on narrower screens the ones
+            that would run off the right edge collapse into a More dropdown. */}
+        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-none h-auto p-0 gap-5 flex-wrap">
           {['patient', 'policy', 'clinical', 'billing', 'notes', 'user', 'care'].map((v, i) => (
             <TabsTrigger key={v} value={v}
               className="data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-3 pt-2 text-base">
               {['Basic', 'Policy', 'Readings', 'Period', 'Notes', 'User', 'Care Plan'][i]}
             </TabsTrigger>
           ))}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className={`flex items-center gap-1 px-1 pb-3 pt-2 text-base font-medium transition-colors ${
-                ['encounters', 'meds', 'devices', 'summary', 'assessments'].includes(activeTab)
-                  ? 'border-b-2 border-primary text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}>
-                More <ChevronDown className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => setActiveTab('encounters')}>Encounter</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('meds')}>Meds</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('devices')}>Devices</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('summary')}>Summary</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setActiveTab('assessments')}>Assessments</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {['encounters', 'meds', 'devices', 'summary', 'assessments'].map((v, i) => (
+            <TabsTrigger key={v} value={v}
+              className="hidden xl:inline-flex data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-1 pb-3 pt-2 text-base">
+              {['Encounter', 'Meds', 'Devices', 'Summary', 'Assessments'][i]}
+            </TabsTrigger>
+          ))}
+          <div className="xl:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className={`flex items-center gap-1 px-1 pb-3 pt-2 text-base font-medium transition-colors ${
+                  ['encounters', 'meds', 'devices', 'summary', 'assessments'].includes(activeTab)
+                    ? 'border-b-2 border-primary text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}>
+                  More <ChevronDown className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuItem onClick={() => setActiveTab('encounters')}>Encounter</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveTab('meds')}>Meds</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveTab('devices')}>Devices</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveTab('summary')}>Summary</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setActiveTab('assessments')}>Assessments</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </TabsList>
 
         {/* BASIC — editable demographics form */}
@@ -698,7 +709,7 @@ function ChartContent() {
               <Info label="Location" value={patient.location || '—'} />
             </div>
             <p className="text-xs text-muted-foreground mt-4">
-              Edit the provider and location on the Basic tab. Manage clinic users under Database → Users.
+              Edit the provider and location on the Basic tab. Manage clinic users from the clinic menu in the sidebar.
             </p>
           </Card>
         </TabsContent>
@@ -1284,8 +1295,15 @@ function PatientMedsCard({ patient }: { patient: any }) {
 }
 
 // ─── Devices tab ───
+const DEVICE_TYPES = [
+  'Blood Pressure Cuff', 'Glucometer', 'Pulse Oximeter', 'Weight Scale',
+  'Continuous Glucose Monitor', 'Spirometer', 'Thermometer', 'ECG Monitor', 'Other',
+];
+
 function PatientDevicesCard({ patientId }: { patientId: string }) {
   const [devices, setDevices] = useState<any[]>([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState({ device_type: DEVICE_TYPES[0], model: '', serial: '', imei: '' });
   const load = async () => {
     const { data } = await supabase.from('rpm_devices').select('*').eq('patient_id', patientId).order('assigned_date', { ascending: false });
     setDevices(data || []);
@@ -1299,11 +1317,43 @@ function PatientDevicesCard({ patientId }: { patientId: string }) {
     load();
   }
 
+  async function addDevice() {
+    const imei = form.imei.replace(/\D/g, '');
+    if (form.imei && (imei.length < 14 || imei.length > 16)) {
+      toast.error('IMEI should be 14–16 digits');
+      return;
+    }
+    const { error } = await supabase.from('rpm_devices').insert({
+      patient_id: patientId, device_type: form.device_type,
+      model: form.model || null, serial_number: form.serial || null,
+      ...(imei ? { imei } : {}),
+    } as any);
+    if (error) {
+      toast.error(error.message.includes('duplicate') || error.message.includes('unique')
+        ? `IMEI ${imei} is already registered to another device`
+        : `Add failed: ${error.message}`);
+      return;
+    }
+    toast.success('Device assigned');
+    setDialogOpen(false);
+    setForm({ device_type: DEVICE_TYPES[0], model: '', serial: '', imei: '' });
+    load();
+  }
+
+  async function remove(d: any) {
+    if (!confirm(`Delete this ${d.device_type}? This cannot be undone.`)) return;
+    const { error } = await supabase.from('rpm_devices').delete().eq('id', d.id);
+    if (error) { toast.error(`Delete failed: ${error.message}`); return; }
+    load();
+  }
+
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-muted-foreground tracking-wider">RPM DEVICES ({devices.length})</h3>
-        <span className="text-xs text-muted-foreground">Assign new devices under Database → Devices</span>
+        <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5">
+          <Plus className="w-4 h-4" /> Assign Device
+        </Button>
       </div>
       <div className="space-y-2">
         {devices.map(d => (
@@ -1312,15 +1362,51 @@ function PatientDevicesCard({ patientId }: { patientId: string }) {
               <span className="font-medium">{d.device_type}</span>
               <span className="text-muted-foreground text-sm ml-2">{d.model || ''} {d.serial_number ? `· SN ${d.serial_number}` : ''} {d.imei ? `· IMEI ${d.imei}` : ''} · assigned {d.assigned_date}</span>
             </div>
-            <button onClick={() => toggle(d)} title="Click to toggle active/returned">
-              <Badge variant="outline" className={d.status === 'active' ? 'border-emerald-500/40 text-emerald-500 cursor-pointer' : 'cursor-pointer'}>
-                {d.status}
-              </Badge>
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => toggle(d)} title="Click to toggle active/returned">
+                <Badge variant="outline" className={d.status === 'active' ? 'border-emerald-500/40 text-emerald-500 cursor-pointer' : 'cursor-pointer'}>
+                  {d.status}
+                </Badge>
+              </button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => remove(d)}>
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </div>
           </div>
         ))}
         {devices.length === 0 && <p className="text-sm text-muted-foreground py-4">No devices assigned to this patient.</p>}
       </div>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Assign Device</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div>
+              <Label>Device Type</Label>
+              <Select value={form.device_type} onValueChange={v => setForm({ ...form, device_type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DEVICE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Model</Label><Input value={form.model} onChange={e => setForm({ ...form, model: e.target.value })} placeholder="Omron BP786N" /></div>
+              <div><Label>Serial #</Label><Input value={form.serial} onChange={e => setForm({ ...form, serial: e.target.value })} /></div>
+            </div>
+            <div>
+              <Label>IMEI <span className="text-muted-foreground font-normal">(cellular devices — links readings to this patient)</span></Label>
+              <Input
+                value={form.imei}
+                onChange={e => setForm({ ...form, imei: e.target.value })}
+                placeholder="356938035643809"
+                className="font-mono"
+                inputMode="numeric"
+              />
+            </div>
+            <Button onClick={addDevice} className="w-full">Assign Device</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
