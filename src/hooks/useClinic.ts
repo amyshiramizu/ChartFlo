@@ -107,6 +107,14 @@ export function useClinic() {
     fetchClinics();
   }, [fetchClinics]);
 
+  // Refresh every mounted instance (sidebar, settings, dialogs) when a
+  // clinic is renamed or otherwise changed elsewhere in the app.
+  useEffect(() => {
+    const onRefresh = () => { fetchClinics(); };
+    window.addEventListener('clinics:refresh', onRefresh);
+    return () => window.removeEventListener('clinics:refresh', onRefresh);
+  }, [fetchClinics]);
+
   const switchClinic = (clinicId: string) => {
     setActiveClinicId(clinicId);
     localStorage.setItem(ACTIVE_CLINIC_KEY, clinicId);
